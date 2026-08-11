@@ -906,6 +906,18 @@ window.api = {
             }
         }
         
+        // Google Drive Restore action
+        if (channel === 'restore-from-cloud-drive') {
+            try {
+                const token = localStorage.getItem('google_access_token');
+                if (!token) throw new Error("Google access token missing.");
+                await tryRestoreFromDrive(token);
+                return { success: true };
+            } catch (err) {
+                return { success: false, error: err.message };
+            }
+        }
+        
         if (channel === 'restore-from-cloud') {
             return new Promise((resolve) => {
                 const input = document.createElement('input');

@@ -4501,13 +4501,19 @@ class Router {
     }
 
     async restoreFromCloud() {
-        this.showConfirmModal('Restore Database?', 'This will replace all current local data with records from your backup file. Are you sure?', async () => {
-            this.showToast('Restoring data...', 'info');
-            const result = await api.invoke('restore-from-cloud');
+        const isSyncEnabled = localStorage.getItem('dentledger_drive_sync') === 'true';
+        if (!isSyncEnabled) {
+            return this.showToast('Please link your Google Drive first (click the badge in the bottom-left sidebar)', 'warning');
+        }
+
+        this.showConfirmModal('Restore Database?', 'This will overwrite all current local data with records from your Google Drive backup. Are you sure?', async () => {
+            this.showToast('Restoring database from Google Drive...', 'info');
+            const result = await api.invoke('restore-from-cloud-drive');
             if (result && result.success) {
                 this.showToast('Database restored successfully! Reloading...', 'success');
-            } else if (result) {
-                this.showToast('Restore failed: ' + result.error, 'error');
+                setTimeout(() => window.location.reload(), 1500);
+            } else {
+                this.showToast('Restore failed: ' + (result ? result.error : 'Unknown error'), 'error');
             }
         });
     }
