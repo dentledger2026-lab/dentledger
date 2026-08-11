@@ -1,0 +1,60 @@
+{
+  "name": "clinic-app",
+  "version": "1.0.1",
+  "description": "Professional Clinic Management System",
+  "author": "",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "nodemon --exec electron .",
+    "web": "node server.js",
+    "deploy": "gh-pages -d src/ui",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dist": "electron-builder",
+    "reset-license": "electron reset-license-electron.js",
+    "prepare-share": "electron prepare-share.js"
+  },
+  "build": {
+    "appId": "com.dentledger.clinic",
+    "productName": "DentLedger",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "asar": true,
+    "compression": "maximum",
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "main.js",
+      "preload.js",
+      "package.json",
+      "!**/node_modules/*/{CHANGELOG.md,README.md,README,test,tests,example,examples,*.txt,*.md}"
+    ]
+  },
+  "keywords": [],
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "better-sqlite3": "^12.9.0",
+    "date-fns": "^4.1.0",
+    "express": "^4.19.2",
+    "firebase": "^12.12.1",
+    "jspdf": "^4.2.1"
+  },
+  "devDependencies": {
+    "electron": "^41.3.0",
+    "electron-builder": "^26.8.1",
+    "gh-pages": "^6.3.0",
+    "nodemon": "^3.1.14"
+  }
+}
