@@ -962,9 +962,17 @@ window.api = {
 
 // Automatic cloud sync pull on application load
 async function syncOnStartup() {
+    if (sessionStorage.getItem('startup_sync_run') === 'true') {
+        console.log("[Startup Sync] Already checked in this session. Skipping to prevent loops.");
+        return;
+    }
+
     const isSyncEnabled = localStorage.getItem('dentledger_drive_sync') === 'true';
     const token = localStorage.getItem('google_access_token');
     if (!isSyncEnabled || !token) return;
+    
+    // Mark as checked to prevent any loops or concurrent runs in this tab session
+    sessionStorage.setItem('startup_sync_run', 'true');
     
     try {
         console.log("[Startup Sync] Verifying Cloud Sync Token...");
@@ -973,6 +981,13 @@ async function syncOnStartup() {
         
         const fileId = await getDriveFileId(token, folderId, 'dentledger_data.json');
         if (fileId) {
+            // Fetch cloud file metadata early
+            const fileRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=modifiedTime`, {
+                headers: { "Authorization": `Bearer ${token}` }
+            });
+            const fileMeta = await fileRes.json();
+            const cloudModTime = fileMeta.modifiedTime ? new Date(fileMeta.modifiedTime).getTime() : 0;
+
             const patients = await dbAPI.getAllPatients();
             const hasLocalData = patients && patients.length > 0;
             
@@ -981,19 +996,15 @@ async function syncOnStartup() {
                 const jsonStr = await downloadDriveFile(token, fileId);
                 if (jsonStr) {
                     await importDatabaseFromJSON(jsonStr);
+                    if (fileMeta.modifiedTime) {
+                        await dbAPI.saveClinicSetting('last_sync', fileMeta.modifiedTime);
+                    }
                     console.log("[Startup Sync] Database successfully restored from cloud.");
                     window.location.reload();
                     return;
                 }
             } else {
-                // Fetch cloud metadata modification time
-                const fileRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=modifiedTime`, {
-                    headers: { "Authorization": `Bearer ${token}` }
-                });
-                const fileMeta = await fileRes.json();
                 if (fileMeta.modifiedTime) {
-                    const cloudModTime = new Date(fileMeta.modifiedTime).getTime();
-                    
                     const lastSyncSetting = await dbAPI.getClinicSettings();
                     const lastSyncTime = lastSyncSetting.last_sync ? new Date(lastSyncSetting.last_sync).getTime() : 0;
                     
