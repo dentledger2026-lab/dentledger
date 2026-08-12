@@ -698,11 +698,12 @@ function triggerDriveSync() {
             updateSyncStatusUI(true, `Cloud Synced: ${now}`);
             
             // Sync setting update
-            const dbVal = await dbGet('clinic_settings', 'last_sync');
-            await dbPut('clinic_settings', { id: 'last_sync', key: 'last_sync', value: new Date().toLocaleString() });
+            const nowIso = new Date().toISOString();
+            const nowLocale = new Date().toLocaleString();
+            await dbPut('clinic_settings', { id: 'last_sync', key: 'last_sync', value: nowIso });
             
             const syncStatusEl = document.getElementById('sync-status');
-            if (syncStatusEl) syncStatusEl.innerText = `Last synced: ${new Date().toLocaleString()}`;
+            if (syncStatusEl) syncStatusEl.innerText = `Last synced: ${nowLocale}`;
         } catch (e) {
             console.warn("[Sync] Backup failed:", e);
             if (e.message && (e.message.includes("401") || e.message.includes("token"))) {
@@ -959,6 +960,80 @@ window.api = {
     }
 };
 
+// Automatic cloud sync pull on application load
+async function syncOnStartup() {
+    const isSyncEnabled = localStorage.getItem('dentledger_drive_sync') === 'true';
+    const token = localStorage.getItem('google_access_token');
+    if (!isSyncEnabled || !token) return;
+    
+    try {
+        console.log("[Startup Sync] Verifying Cloud Sync Token...");
+        const folderId = await getOrCreateDriveFolder(token);
+        localStorage.setItem('google_folder_id', folderId);
+        
+        const fileId = await getDriveFileId(token, folderId, 'dentledger_data.json');
+        if (fileId) {
+            const patients = await dbAPI.getAllPatients();
+            const hasLocalData = patients && patients.length > 0;
+            
+            if (!hasLocalData) {
+                console.log("[Startup Sync] Local database is empty. Restoring backup from Google Drive...");
+                const jsonStr = await downloadDriveFile(token, fileId);
+                if (jsonStr) {
+                    await importDatabaseFromJSON(jsonStr);
+                    console.log("[Startup Sync] Database successfully restored from cloud.");
+                    window.location.reload();
+                    return;
+                }
+            } else {
+                // Fetch cloud metadata modification time
+                const fileRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=modifiedTime`, {
+                    headers: { "Authorization": `Bearer ${token}` }
+                });
+                const fileMeta = await fileRes.json();
+                if (fileMeta.modifiedTime) {
+                    const cloudModTime = new Date(fileMeta.modifiedTime).getTime();
+                    
+                    const lastSyncSetting = await dbAPI.getClinicSettings();
+                    const lastSyncTime = lastSyncSetting.last_sync ? new Date(lastSyncSetting.last_sync).getTime() : 0;
+                    
+                    // If cloud is newer (10 seconds gap check), pull changes
+                    if (cloudModTime > lastSyncTime + 10000) {
+                        console.log("[Startup Sync] Google Drive backup is newer than local DB. Pulling latest cloud changes...");
+                        const jsonStr = await downloadDriveFile(token, fileId);
+                        if (jsonStr) {
+                            await importDatabaseFromJSON(jsonStr);
+                            // Store the cloud modification time to avoid infinite startup pulling
+                            await dbAPI.saveClinicSetting('last_sync', fileMeta.modifiedTime);
+                            console.log("[Startup Sync] Local database updated with latest cloud changes.");
+                            window.location.reload();
+                            return;
+                        }
+                    } else {
+                        console.log("[Startup Sync] Local database is already up to date.");
+                    }
+                }
+            }
+        } else {
+            console.log("[Startup Sync] No cloud backup found on Google Drive.");
+        }
+    } catch (err) {
+        console.warn("[Startup Sync] Startup sync check failed:", err);
+        // Switch sync status badge to reconnect if token unauthorized (401)
+        if (err.message && (err.message.includes("401") || err.message.includes("token") || err.message.includes("credential"))) {
+            updateSyncStatusUI(false, "Sync Paused (Reconnect)");
+        } else {
+            // Quick check if the API returns 401
+            const tokenTestRes = await fetch("https://www.googleapis.com/drive/v3/files?pageSize=1", {
+                headers: { "Authorization": `Bearer ${token}` }
+            }).catch(() => null);
+            if (tokenTestRes && tokenTestRes.status === 401) {
+                updateSyncStatusUI(false, "Sync Paused (Reconnect)");
+            }
+        }
+    }
+}
+
 // Global Firebase auth state listener
 auth.onAuthStateChanged(async (user) => {
     console.log("[Web API] Auth State Changed:", user ? user.email : "Guest");
@@ -1010,6 +1085,7 @@ auth.onAuthStateChanged(async (user) => {
             const driveToken = localStorage.getItem('google_access_token');
             if (isSyncEnabled && driveToken) {
                 updateSyncStatusUI(true, "Cloud Sync Connected");
+                syncOnStartup();
             } else if (driveToken) {
                 updateSyncStatusUI(false, "Sync Paused (Reconnect)");
             } else {
