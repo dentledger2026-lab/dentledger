@@ -1004,22 +1004,38 @@ async function syncOnStartup() {
                     return;
                 }
             } else {
-                if (fileMeta.modifiedTime) {
+                // Fetch cloud data to check if it has records, preventing overwriting local patients
+                const jsonStr = await downloadDriveFile(token, fileId);
+                let cloudHasData = false;
+                try {
+                    const cloudData = JSON.parse(jsonStr);
+                    if (cloudData.patients && cloudData.patients.length > 0) {
+                        cloudHasData = true;
+                    }
+                } catch (e) {
+                    console.warn("[Startup Sync] Error parsing cloud backup file:", e);
+                }
+
+                if (!cloudHasData) {
+                    // Cloud is empty but local has data! Force upload local data to cloud.
+                    console.log("[Startup Sync] Cloud backup has no records but local database has patients. Uploading local DB to Google Drive to initialize cloud...");
+                    await uploadDataToGoogleDrive();
+                    const nowIso = new Date().toISOString();
+                    await dbAPI.saveClinicSetting('last_sync', nowIso);
+                    console.log("[Startup Sync] Local database successfully uploaded to cloud.");
+                } else if (fileMeta.modifiedTime) {
                     const lastSyncSetting = await dbAPI.getClinicSettings();
                     const lastSyncTime = lastSyncSetting.last_sync ? new Date(lastSyncSetting.last_sync).getTime() : 0;
                     
                     // If cloud is newer (10 seconds gap check), pull changes
                     if (cloudModTime > lastSyncTime + 10000) {
                         console.log("[Startup Sync] Google Drive backup is newer than local DB. Pulling latest cloud changes...");
-                        const jsonStr = await downloadDriveFile(token, fileId);
-                        if (jsonStr) {
-                            await importDatabaseFromJSON(jsonStr);
-                            // Store the cloud modification time to avoid infinite startup pulling
-                            await dbAPI.saveClinicSetting('last_sync', fileMeta.modifiedTime);
-                            console.log("[Startup Sync] Local database updated with latest cloud changes.");
-                            window.location.reload();
-                            return;
-                        }
+                        await importDatabaseFromJSON(jsonStr);
+                        // Store the cloud modification time to avoid infinite startup pulling
+                        await dbAPI.saveClinicSetting('last_sync', fileMeta.modifiedTime);
+                        console.log("[Startup Sync] Local database updated with latest cloud changes.");
+                        window.location.reload();
+                        return;
                     } else {
                         console.log("[Startup Sync] Local database is already up to date.");
                     }
