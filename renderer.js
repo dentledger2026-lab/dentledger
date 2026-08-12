@@ -4199,6 +4199,43 @@ class Router {
                             </div>
                         </div>
                     </div>
+
+                    <!-- App Installation Guide Card -->
+                    <div class="premium-card" style="margin-top: 30px;">
+                        <div class="card-header-premium" style="background: white; border-bottom: 1px solid #f1f5f9; padding: 20px 25px;">
+                            <h3 style="color: #1e293b; font-weight: 800; font-size: 1.1rem; margin: 0;">
+                                <i class="fas fa-mobile-alt" style="color: #0d9488; margin-right: 10px;"></i>
+                                Install DentLedger as App (Laptop & Mobile)
+                            </h3>
+                        </div>
+                        <div style="padding: 25px;">
+                            <p style="color: #64748b; font-size: 0.9rem; margin-bottom: 20px; line-height: 1.5;">
+                                DentLedger is a Progressive Web App (PWA). You can install it on your devices to run it as a dedicated application with offline access.
+                            </p>
+                            <div class="pwa-instructions-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                                <div style="background: #f8fafc; padding: 18px; border-radius: 12px; border: 1px solid #e2e8f0;">
+                                    <h4 style="font-weight: 700; color: #1e293b; margin-bottom: 10px; font-size: 0.95rem; display: flex; align-items: center; gap: 8px;">
+                                        <i class="fas fa-desktop" style="color: #0d9488;"></i> Laptop & Desktop
+                                    </h4>
+                                    <ol style="margin-left: 20px; padding: 0; color: #64748b; font-size: 0.85rem; line-height: 1.6;">
+                                        <li>Open DentLedger in <strong>Google Chrome</strong> or <strong>Microsoft Edge</strong>.</li>
+                                        <li>Click the <strong>Install Icon</strong> (<i class="fas fa-download"></i>) in the address bar.</li>
+                                        <li>Or, open the browser menu (<i class="fas fa-ellipsis-v"></i>) and select <strong>"Install DentLedger..."</strong>.</li>
+                                    </ol>
+                                </div>
+                                <div style="background: #f8fafc; padding: 18px; border-radius: 12px; border: 1px solid #e2e8f0;">
+                                    <h4 style="font-weight: 700; color: #1e293b; margin-bottom: 10px; font-size: 0.95rem; display: flex; align-items: center; gap: 8px;">
+                                        <i class="fas fa-mobile-alt" style="color: #0d9488;"></i> Android & iPhone Mobile
+                                    </h4>
+                                    <ol style="margin-left: 20px; padding: 0; color: #64748b; font-size: 0.85rem; line-height: 1.6;">
+                                        <li>Open the web app URL on your phone's default browser.</li>
+                                        <li><strong>Android (Chrome):</strong> Tap the install prompt at the bottom of the screen, or select <strong>Add to Home screen</strong> from the menu.</li>
+                                        <li><strong>iOS (Safari):</strong> Tap the <strong>Share</strong> button (<i class="fas fa-share-square"></i>) and choose <strong>"Add to Home Screen"</strong>.</li>
+                                    </ol>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             `;
 
