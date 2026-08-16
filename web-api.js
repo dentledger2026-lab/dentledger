@@ -681,11 +681,86 @@ async function updateDriveExcelFile(token, fileId, arrayBuffer) {
     return await res.json();
 }
 
-// Generate two-page Excel workbook binary buffer
+// Base64 helper to convert data URLs to ArrayBuffer
+function base64ToArrayBuffer(base64) {
+    const base64Parts = base64.split(',');
+    const rawBase64 = base64Parts.length > 1 ? base64Parts[1] : base64Parts[0];
+    const binaryString = atob(rawBase64);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+    }
+    return bytes.buffer;
+}
+
+// Upload standalone image file to Drive
+async function uploadImageFileToDrive(token, folderId, fileName, base64Data) {
+    let mimeType = "image/jpeg";
+    const matches = base64Data.match(/^data:([^;]+);/);
+    if (matches && matches.length > 1) {
+        mimeType = matches[1];
+    }
+
+    // 1. Create file metadata in Google Drive folder
+    const metadataRes = await fetch("https://www.googleapis.com/drive/v3/files", {
+        method: "POST",
+        headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            name: fileName,
+            parents: [folderId],
+            mimeType: mimeType
+        })
+    });
+    if (!metadataRes.ok) {
+        const errText = await metadataRes.text();
+        throw new Error("Failed to create image metadata in Drive: " + errText);
+    }
+    const fileData = await metadataRes.json();
+    const fileId = fileData.id;
+
+    // 2. Upload the binary content
+    const arrayBuffer = base64ToArrayBuffer(base64Data);
+    const mediaRes = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
+        method: "PATCH",
+        headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": mimeType
+        },
+        body: arrayBuffer
+    });
+    if (!mediaRes.ok) {
+        const errText = await mediaRes.text();
+        throw new Error("Failed to upload image media to Drive: " + errText);
+    }
+
+    // 3. Fetch the webViewLink
+    const fieldsRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=webViewLink`, {
+        headers: { "Authorization": `Bearer ${token}` }
+    });
+    const fieldsData = await fieldsRes.json();
+    return fieldsData.webViewLink || `https://drive.google.com/file/d/${fileId}/view`;
+}
+
+// Generate three-page Excel workbook binary buffer
 async function generateExcelSyncBuffer() {
     const patients = await dbGetAll('patients');
     const dentalRecords = await dbGetAll('dental_records');
     const billing = await dbGetAll('billing');
+    const treatmentLogs = await dbGetAll('treatment_logs');
+    const settings = await dbGetAll('clinic_settings');
+    
+    // Create mapping of image links by key name
+    const imageLinksMap = {};
+    for (const item of settings) {
+        if (item && item.key && item.key.startsWith('image_link_')) {
+            const imgFileName = item.key.replace('image_link_', '');
+            imageLinksMap[imgFileName] = item.value;
+        }
+    }
     
     // Create mapping of patient records by patient_id
     const recordsMap = {};
@@ -698,12 +773,51 @@ async function generateExcelSyncBuffer() {
         }
     }
     
-    // Page 1: Patient Details
+    // Helper to resolve investigation images to their Google Drive links
+    const getInvestigationLinks = (record, typeId) => {
+        if (!record || !record.investigations) return 'N/A';
+        try {
+            const invData = JSON.parse(record.investigations);
+            const data = invData[typeId] || {};
+            let imagesArr = [];
+            if (Array.isArray(data.images)) {
+                imagesArr = data.images;
+            } else if (typeof data.image === 'string' && data.image) {
+                imagesArr = [data.image];
+            } else if (typeof data.images === 'string' && data.images) {
+                imagesArr = [data.images];
+            }
+            
+            if (imagesArr.length === 0) return 'No images';
+            
+            const links = imagesArr.map(img => {
+                const cleanImg = img.trim();
+                const driveUrl = imageLinksMap[cleanImg];
+                return driveUrl ? driveUrl : `Local Cache: ${cleanImg} (Sync pending)`;
+            });
+            return links.join(', ');
+        } catch (e) {
+            return 'Error parsing';
+        }
+    };
+    
+    // Helper to resolve investigation findings
+    const getInvestigationFindings = (record, typeId) => {
+        if (!record || !record.investigations) return 'N/A';
+        try {
+            const invData = JSON.parse(record.investigations);
+            return (invData[typeId] && invData[typeId].findings) ? invData[typeId].findings : 'No findings';
+        } catch (e) {
+            return 'Error parsing';
+        }
+    };
+    
+    // Page 1: Patient Details (Comprehensive clinical and demographic)
     const patientRows = [];
     for (const p of patients) {
-        const record = recordsMap[p.id] || {};
+        const r = recordsMap[p.id] || {};
         patientRows.push({
-            "Patient ID": `DL-${p.id}`,
+            "Patient ID": `DR-${p.id}`,
             "Full Name": p.full_name || '',
             "Age": p.age || '',
             "Gender": p.gender || '',
@@ -713,22 +827,110 @@ async function generateExcelSyncBuffer() {
             "Email ID": p.email_id || '',
             "Occupation": p.occupation || '',
             "Address": p.address || '',
-            "Chief Complaint": record.chief_complaint || '',
-            "Medical History": record.medical_history || '',
-            "Diagnosis": record.diagnosis || '',
-            "Treatment Plan": record.treatment_plan || '',
+            
+            // Clinical History & Habits
+            "Chief Complaint": r.chief_complaint || '',
+            "History of Present Illness": r.history_present_illness || '',
+            "Medical History": r.medical_history || '',
+            "Past Dental History": r.past_dental_history || '',
+            "Drug History / Allergies": r.drug_history || '',
+            "Family History": r.family_history || '',
+            "Oral Habits": r.oral_habits || '',
+            "Habits Frequency": r.adverse_habits_freq || '',
+            "Habits Duration (Years)": r.adverse_habits_years || '',
+            "Abnormal Habits": r.abnormal_habits || '',
+            "Other Habits Details": r.habits_other || '',
+            
+            // Extra-Oral Examination
+            "Facial Profile": r.eo_facial_profile || '',
+            "Facial Form": r.eo_facial_form || '',
+            "Facial Divergence": r.eo_facial_divergence || '',
+            "Head Shape": r.eo_head_shape || '',
+            "Lip Size": r.eo_lip_size || '',
+            "Lip Posture": r.eo_lip_posture || '',
+            "Lip Relation": r.eo_lip_relation || '',
+            "Nasolabial Angle": r.eo_nasolabial_angle || '',
+            "Mentolabial Sulcus": r.eo_mentolabial_sulcus || '',
+            "Clinical FMA": r.eo_clinical_fma || '',
+            "Chin Status": r.eo_chin || '',
+            "General Extraoral Findings": r.extraoral_findings || '',
+            
+            // Functional Examination
+            "Respiration": r.func_respiration || '',
+            "Deglutition": r.func_deglutition || '',
+            "Speech": r.func_speech || '',
+            "TMJ Status": r.func_tmj || '',
+            "Postural Rest": r.func_postural_rest || '',
+            "Path of Closure": r.func_path_closure || '',
+            "Perioral Muscle": r.func_perioral_muscle || '',
+            "Other Functional Exam": r.func_other || '',
+            
+            // Intra-Oral Soft Tissue
+            "Oral Hygiene": r.st_oral_hygiene || '',
+            "Gingival Status": r.st_gingival_texture || '',
+            "Frenal Attachment": r.st_frenal_attachment || '',
+            "Tongue Size": r.st_tongue_size || '',
+            "Tongue Shape": r.st_tongue_shape || '',
+            "Tongue Posture": r.st_tongue_posture || '',
+            "Tongue Movements": r.st_tongue_movements || '',
+            "Oral Mucosa": r.st_oral_mucosa || '',
+            "Palatal Contour": r.st_palatal_contour || '',
+            "Tonsils & Adenoids": r.st_tonsils_adenoids || '',
+            "General Soft Tissue findings": r.intraoral_soft_tissue || '',
+            
+            // Intra-Oral Hard Tissue & Occlusion
+            "Molar Relation (R/L)": r.occ_molar || '',
+            "Canine Relation (R/L)": r.occ_canine || '',
+            "Incisal A-P": r.occ_incisal_ap || '',
+            "Overjet": r.occ_overjet || '',
+            "Overbite": r.occ_overbite || '',
+            "Crossbite": r.occ_crossbite || '',
+            "Scissorbite": r.occ_scissorbite || '',
+            "Midline": r.occ_midline || '',
+            "Other Occlusal / Arch details": r.occ_intra_arch || '',
+            "Caries Chart (JSON Status)": r.caries_chart || '',
+            
+            // Investigations - Google Drive Image Links
+            "IOPA Image Links (Google Drive)": getInvestigationLinks(r, 'iopa'),
+            "IOPA Findings": getInvestigationFindings(r, 'iopa'),
+            "OPG Image Links (Google Drive)": getInvestigationLinks(r, 'opg'),
+            "OPG Findings": getInvestigationFindings(r, 'opg'),
+            "Lat. Ceph Links (Google Drive)": getInvestigationLinks(r, 'lat_ceph'),
+            "Lat. Ceph Findings": getInvestigationFindings(r, 'lat_ceph'),
+            "Clinical Pictures (Google Drive)": getInvestigationLinks(r, 'photos'),
+            "Clinical Pictures Findings": getInvestigationFindings(r, 'photos'),
+            
+            // Diagnosis & Treatment Strategy
+            "Final Concluding Diagnosis": r.diagnosis || '',
+            "Master Treatment Strategy": r.treatment_plan || '',
             "Registered Date": p.created_at ? new Date(p.created_at).toLocaleDateString() : ''
         });
     }
     
-    // Page 2: Billing Ledger
-    const billingRows = [];
+    // Page 2: Treatment Logs (One row per patient visit procedure entry)
+    const logsRows = [];
     const patientNames = {};
     for (const p of patients) {
         patientNames[p.id] = p.full_name;
     }
     
-    // Sort billing items newest first
+    const sortedLogs = [...treatmentLogs].sort((a, b) => {
+        const dateA = new Date(a.created_at || 0);
+        const dateB = new Date(b.created_at || 0);
+        return dateB - dateA;
+    });
+    
+    for (const log of sortedLogs) {
+        logsRows.push({
+            "Patient ID": `DR-${log.patient_id}`,
+            "Patient Name": patientNames[log.patient_id] || 'Unknown Patient',
+            "Visit Date": log.created_at ? new Date(log.created_at).toLocaleDateString() : '',
+            "Procedure / Treatment Done & Clinical Notes": log.procedure_logs || ''
+        });
+    }
+    
+    // Page 3: Billing Ledger (One row per billing invoice/transaction)
+    const billingRows = [];
     const sortedBilling = [...billing].sort((a, b) => {
         const dateA = new Date(a.created_at || 0);
         const dateB = new Date(b.created_at || 0);
@@ -738,13 +940,13 @@ async function generateExcelSyncBuffer() {
     for (const b of sortedBilling) {
         if (b.deleted_at) continue; // Skip deleted billing logs
         billingRows.push({
-            "Patient ID": `DL-${b.patient_id}`,
+            "Patient ID": `DR-${b.patient_id}`,
             "Patient Name": patientNames[b.patient_id] || 'Unknown Patient',
             "Date": b.created_at ? new Date(b.created_at).toLocaleDateString() : '',
-            "Treatment Name": b.treatment_name || '',
-            "Total Cost": b.total_cost || 0,
-            "Paid Amount": b.paid_amount || 0,
-            "Balance Amount": b.balance_amount || 0,
+            "Treatment Billed": b.treatment_name || '',
+            "Total Cost (₹)": b.total_cost || 0,
+            "Paid Amount (₹)": b.paid_amount || 0,
+            "Balance Amount (₹)": b.balance_amount || 0,
             "Payment Mode": b.payment_mode || ''
         });
     }
@@ -752,9 +954,11 @@ async function generateExcelSyncBuffer() {
     // Build Excel workbook
     const wb = XLSX.utils.book_new();
     const wsPatients = XLSX.utils.json_to_sheet(patientRows);
+    const wsLogs = XLSX.utils.json_to_sheet(logsRows);
     const wsBilling = XLSX.utils.json_to_sheet(billingRows);
     
     XLSX.utils.book_append_sheet(wb, wsPatients, "Patient Details");
+    XLSX.utils.book_append_sheet(wb, wsLogs, "Treatment Logs");
     XLSX.utils.book_append_sheet(wb, wsBilling, "Billing Ledger");
     
     // Write to array buffer
@@ -782,7 +986,41 @@ async function uploadDataToGoogleDrive() {
         await createDriveFile(token, folderId, 'dentrecords_data.json', dbJson);
     }
 
-    // 2. Sync the Excel spreadsheet report
+    // 2. Scan and upload all local cached clinical images to Drive
+    try {
+        const settings = await dbGetAll('clinic_settings');
+        for (const item of settings) {
+            if (item && item.key && item.key.startsWith('image_') && item.value) {
+                const imgFileName = item.key.replace('image_', '');
+                const cacheLinkKey = `image_link_${imgFileName}`;
+                
+                const cachedLink = settings.find(s => s.key === cacheLinkKey);
+                if (!cachedLink) {
+                    console.log(`[Sync] Uploading clinical image to Google Drive: ${imgFileName}`);
+                    let imgFileId = await getDriveFileId(token, folderId, imgFileName);
+                    let driveUrl = "";
+                    if (imgFileId) {
+                        const fieldsRes = await fetch(`https://www.googleapis.com/drive/v3/files/${imgFileId}?fields=webViewLink`, {
+                            headers: { "Authorization": `Bearer ${token}` }
+                        });
+                        const fieldsData = await fieldsRes.json();
+                        driveUrl = fieldsData.webViewLink || `https://drive.google.com/file/d/${imgFileId}/view`;
+                    } else {
+                        driveUrl = await uploadImageFileToDrive(token, folderId, imgFileName, item.value);
+                    }
+                    
+                    if (driveUrl) {
+                        await dbPut('clinic_settings', { id: cacheLinkKey, key: cacheLinkKey, value: driveUrl });
+                        console.log(`[Sync] Image uploaded and link cached: ${imgFileName} -> ${driveUrl}`);
+                    }
+                }
+            }
+        }
+    } catch (imageSyncErr) {
+        console.error("[Sync] Background image sync failed:", imageSyncErr);
+    }
+
+    // 3. Sync the Excel spreadsheet report
     try {
         const excelBuffer = await generateExcelSyncBuffer();
         let excelFileId = await getDriveFileId(token, folderId, 'dentrecords_sync_report.xlsx');
