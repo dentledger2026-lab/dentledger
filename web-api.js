@@ -1,4 +1,7 @@
-// DentLedger Web API - IndexedDB (Offline-First) & Personal Google Drive Sync Wrapper
+// DentRecords Web API - IndexedDB (Offline-First) & Personal Google Drive Sync Wrapper
+if (localStorage.getItem('dentrecords_drive_sync') === null && localStorage.getItem('dentledger_drive_sync') !== null) {
+    localStorage.setItem('dentrecords_drive_sync', localStorage.getItem('dentledger_drive_sync'));
+}
 const firebaseConfig = {
   apiKey: "AIzaSyAJZ5PWscSVM_TPNWHsW67LMA0c9_UekWE",
   authDomain: "dentledger-fd246.firebaseapp.com",
@@ -555,7 +558,7 @@ const dbAPI = {
 
 // Google Drive API direct fetch integration
 async function getOrCreateDriveFolder(token) {
-    const searchRes = await fetch("https://www.googleapis.com/drive/v3/files?q=name='DentLedger' and mimeType='application/vnd.google-apps.folder' and trashed=false", {
+    const searchRes = await fetch("https://www.googleapis.com/drive/v3/files?q=name='DentRecords' and mimeType='application/vnd.google-apps.folder' and trashed=false", {
         headers: { "Authorization": `Bearer ${token}` }
     });
     const searchData = await searchRes.json();
@@ -571,7 +574,7 @@ async function getOrCreateDriveFolder(token) {
             "Content-Type": "application/json"
         },
         body: JSON.stringify({
-            name: 'DentLedger',
+            name: 'DentRecords',
             mimeType: 'application/vnd.google-apps.folder'
         })
     });
@@ -597,7 +600,7 @@ async function createDriveFile(token, folderId, fileName, content) {
         parents: [folderId]
     };
     
-    const boundary = 'dentledger_multipart_boundary';
+    const boundary = 'dentrecords_multipart_boundary';
     const delimiter = `\r\n--${boundary}\r\n`;
     const close_delimiter = `\r\n--${boundary}--`;
     
@@ -771,22 +774,22 @@ async function uploadDataToGoogleDrive() {
     
     // 1. Sync the JSON database file
     const dbJson = await exportDatabaseToJSON();
-    let fileId = await getDriveFileId(token, folderId, 'dentledger_data.json');
+    let fileId = await getDriveFileId(token, folderId, 'dentrecords_data.json');
     
     if (fileId) {
         await updateDriveFile(token, fileId, dbJson);
     } else {
-        await createDriveFile(token, folderId, 'dentledger_data.json', dbJson);
+        await createDriveFile(token, folderId, 'dentrecords_data.json', dbJson);
     }
 
     // 2. Sync the Excel spreadsheet report
     try {
         const excelBuffer = await generateExcelSyncBuffer();
-        let excelFileId = await getDriveFileId(token, folderId, 'dentledger_sync_report.xlsx');
+        let excelFileId = await getDriveFileId(token, folderId, 'dentrecords_sync_report.xlsx');
         if (excelFileId) {
             await updateDriveExcelFile(token, excelFileId, excelBuffer);
         } else {
-            const newExcelId = await createDriveExcelFileMetadata(token, folderId, 'dentledger_sync_report.xlsx');
+            const newExcelId = await createDriveExcelFileMetadata(token, folderId, 'dentrecords_sync_report.xlsx');
             await updateDriveExcelFile(token, newExcelId, excelBuffer);
         }
         console.log("[Sync] Excel sync report successfully updated in background.");
@@ -800,7 +803,12 @@ async function tryRestoreFromDrive(token) {
         const folderId = await getOrCreateDriveFolder(token);
         localStorage.setItem('google_folder_id', folderId);
         
-        const fileId = await getDriveFileId(token, folderId, 'dentledger_data.json');
+        let fileId = await getDriveFileId(token, folderId, 'dentrecords_data.json');
+        if (!fileId) {
+            // Fallback: search for legacy database filename
+            fileId = await getDriveFileId(token, folderId, 'dentledger_data.json');
+        }
+        
         if (fileId) {
             console.log("[Restore] Found cloud backup database, applying...");
             const jsonStr = await downloadDriveFile(token, fileId);
@@ -819,7 +827,7 @@ async function tryRestoreFromDrive(token) {
 // Debounced Google Drive Backup trigger
 let syncTimeout = null;
 function triggerDriveSync() {
-    const isSyncEnabled = localStorage.getItem('dentledger_drive_sync') === 'true';
+    const isSyncEnabled = localStorage.getItem('dentrecords_drive_sync') === 'true';
     const token = localStorage.getItem('google_access_token');
     if (!isSyncEnabled || !token) return;
     
@@ -890,7 +898,7 @@ window.reconnectGoogleDrive = async () => {
         
         if (credential && credential.accessToken) {
             localStorage.setItem('google_access_token', credential.accessToken);
-            localStorage.setItem('dentledger_drive_sync', 'true');
+            localStorage.setItem('dentrecords_drive_sync', 'true');
             console.log("[Web API] Token successfully generated.");
             
             await tryRestoreFromDrive(credential.accessToken);
@@ -1018,7 +1026,7 @@ window.api = {
         }
         
         if (channel === 'select-file') {
-            return "DentLedger JSON Database Backup";
+            return "DentRecords JSON Database Backup";
         }
         
         // Google Drive sync action
@@ -1101,7 +1109,7 @@ async function syncOnStartup() {
         return;
     }
 
-    const isSyncEnabled = localStorage.getItem('dentledger_drive_sync') === 'true';
+    const isSyncEnabled = localStorage.getItem('dentrecords_drive_sync') === 'true';
     const token = localStorage.getItem('google_access_token');
     if (!isSyncEnabled || !token) return;
     
@@ -1113,7 +1121,10 @@ async function syncOnStartup() {
         const folderId = await getOrCreateDriveFolder(token);
         localStorage.setItem('google_folder_id', folderId);
         
-        const fileId = await getDriveFileId(token, folderId, 'dentledger_data.json');
+        let fileId = await getDriveFileId(token, folderId, 'dentrecords_data.json');
+        if (!fileId) {
+            fileId = await getDriveFileId(token, folderId, 'dentledger_data.json');
+        }
         if (fileId) {
             // Fetch cloud file metadata early
             const fileRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=modifiedTime`, {
@@ -1242,7 +1253,7 @@ auth.onAuthStateChanged(async (user) => {
             }
             
             // Set sync status badge visual based on authentication configuration
-            const isSyncEnabled = localStorage.getItem('dentledger_drive_sync') === 'true';
+            const isSyncEnabled = localStorage.getItem('dentrecords_drive_sync') === 'true';
             const driveToken = localStorage.getItem('google_access_token');
             if (isSyncEnabled && driveToken) {
                 updateSyncStatusUI(true, "Cloud Sync Connected");
@@ -1305,7 +1316,7 @@ window.handleGoogleSignIn = async () => {
         // Save the Google Access Token in localStorage
         if (credential && credential.accessToken) {
             localStorage.setItem('google_access_token', credential.accessToken);
-            localStorage.setItem('dentledger_drive_sync', 'true');
+            localStorage.setItem('dentrecords_drive_sync', 'true');
         }
         
         // Check if database settings already exist for this user in IndexedDB!
@@ -1357,7 +1368,7 @@ window.handleWebSignIn = async (e) => {
         await auth.signInWithEmailAndPassword(email, password);
         // Email/Password login runs in Local Only mode unless they connect their Drive later
         localStorage.removeItem('google_access_token');
-        localStorage.setItem('dentledger_drive_sync', 'false');
+        localStorage.setItem('dentrecords_drive_sync', 'false');
         
         if (status) {
             status.innerText = "Success! Loading application...";
@@ -1416,7 +1427,7 @@ window.handleWebSignUp = async (e) => {
         
         // Email/Password login runs in Local Only mode initially
         localStorage.removeItem('google_access_token');
-        localStorage.setItem('dentledger_drive_sync', 'false');
+        localStorage.setItem('dentrecords_drive_sync', 'false');
         
         if (status) {
             status.innerText = "Success! Creating portal...";
@@ -1440,7 +1451,7 @@ window.handleWebSignOut = async () => {
         try {
             await auth.signOut();
             localStorage.removeItem('google_access_token');
-            localStorage.setItem('dentledger_drive_sync', 'false');
+            localStorage.setItem('dentrecords_drive_sync', 'false');
             window.location.reload();
         } catch (e) {
             console.error("Sign out failed:", e);

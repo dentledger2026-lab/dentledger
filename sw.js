@@ -1,9 +1,10 @@
-const CACHE_NAME = "dentledger-v1";
+const CACHE_NAME = "dentrecords-v1";
 const ASSETS = [
   "index.html",
   "styles.css",
   "renderer.js",
   "web-api.js",
+  "xlsx.full.min.js",
   "manifest.json",
   "icon-192.png",
   "icon-512.png",
