@@ -6,10 +6,10 @@ const fs = require('fs');
 app.whenReady().then(() => {
     try {
         const userDataPath = path.join(app.getPath('appData'), 'clinic-app');
-        const dbPath = path.join(userDataPath, 'dentledger.db');
+        const dbPath = path.join(userDataPath, 'dentrecords.db');
         const investigationsDir = path.join(userDataPath, 'investigations');
 
-        console.log("--- 🧹 DENTLEDGER CLEANING UTILITY ---");
+        console.log("--- 🧹 DENTRECORDS CLEANING UTILITY ---");
 
         // 1. Delete Database (Clears Patients, Billing, and License)
         if (fs.existsSync(dbPath)) {

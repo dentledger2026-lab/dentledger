@@ -8,7 +8,7 @@ app.whenReady().then(() => {
     try {
         // Force Electron to look in the clinic-app folder instead of the default "Electron" folder
         const userDataPath = path.join(app.getPath('appData'), 'clinic-app');
-        const dbPath = path.join(userDataPath, 'dentledger.db');
+        const dbPath = path.join(userDataPath, 'dentrecords.db');
 
         console.log(`📡 Searching for database at: ${dbPath}`);
         if (!fs.existsSync(dbPath)) {

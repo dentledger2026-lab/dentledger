@@ -1,6 +1,6 @@
 {
-  "name": "DentLedger - Dental Clinic Management",
-  "short_name": "DentLedger",
+  "name": "DentRecords - Dental Clinic Management",
+  "short_name": "DentRecords",
   "description": "Professional offline-first dental clinic management system with cloud sync.",
   "start_url": "index.html",
   "display": "standalone",

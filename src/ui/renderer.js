@@ -2480,8 +2480,8 @@ class Router {
             const settingsRes = await api.invoke('db-query', 'getClinicSettings');
             const s = settingsRes.success ? settingsRes.data : {};
 
-            const clinicName = s.clinic_name || 'DentLedger Clinical Hub';
-            const drName = s.doctor_name ? `Dr. ${s.doctor_name}` : 'DentLedger Practitioner';
+            const clinicName = s.clinic_name || 'DentRecords Clinical Hub';
+            const drName = s.doctor_name ? `Dr. ${s.doctor_name}` : 'DentRecords Practitioner';
             const clinicPhone = s.clinic_phone || '';
 
             // Generate Tooth Chart HTML for PDF
@@ -3757,7 +3757,7 @@ class Router {
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
                             <div class="form-group">
                                 <label style="font-weight: 700; font-size: 0.8rem; color: #64748b;">Clinic Name</label>
-                                <input type="text" class="premium-input" value="DentLedger Dental Care" style="background: #f8fafc; border-color: #e2e8f0;">
+                                <input type="text" class="premium-input" value="DentRecords Dental Care" style="background: #f8fafc; border-color: #e2e8f0;">
                             </div>
                             <div class="form-group">
                                 <label style="font-weight: 700; font-size: 0.8rem; color: #64748b;">Contact Primary</label>
@@ -3781,8 +3781,8 @@ class Router {
                     </div>
 
                     <div style="text-align: center; color: #94a3b8; font-size: 0.8rem;">
-                        <p>DentLedger Clinical Hub v1.0.4</p>
-                        <p style="margin-top: 5px;">Powered by DentLedger Engine & Electron</p>
+                        <p>DentRecords Clinical Hub v1.0.4</p>
+                        <p style="margin-top: 5px;">Powered by DentRecords Engine & Electron</p>
                     </div>
                 </div>
             </div>
@@ -4094,7 +4094,7 @@ class Router {
                                     <label style="font-weight: 700; color: #1e293b;">Clinic Name</label>
                                     <div class="input-with-icon">
                                         <i class="fas fa-clinic-medical"></i>
-                                        <input type="text" id="setting-clinic-name" class="premium-input" placeholder="e.g. DentLedger Dental" value="${s.clinic_name || ''}">
+                                        <input type="text" id="setting-clinic-name" class="premium-input" placeholder="e.g. DentRecords Dental" value="${s.clinic_name || ''}">
                                     </div>
                                 </div>
                                 <div class="form-group">
@@ -4205,12 +4205,12 @@ class Router {
                         <div class="card-header-premium" style="background: white; border-bottom: 1px solid #f1f5f9; padding: 20px 25px;">
                             <h3 style="color: #1e293b; font-weight: 800; font-size: 1.1rem; margin: 0;">
                                 <i class="fas fa-mobile-alt" style="color: #0d9488; margin-right: 10px;"></i>
-                                Install DentLedger as App (Laptop & Mobile)
+                                Install DentRecords as App (Laptop & Mobile)
                             </h3>
                         </div>
                         <div style="padding: 25px;">
                             <p style="color: #64748b; font-size: 0.9rem; margin-bottom: 20px; line-height: 1.5;">
-                                DentLedger is a Progressive Web App (PWA). You can install it on your devices to run it as a dedicated application with offline access.
+                                DentRecords is a Progressive Web App (PWA). You can install it on your devices to run it as a dedicated application with offline access.
                             </p>
                             <div class="pwa-instructions-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
                                 <div style="background: #f8fafc; padding: 18px; border-radius: 12px; border: 1px solid #e2e8f0;">
@@ -4218,9 +4218,9 @@ class Router {
                                         <i class="fas fa-desktop" style="color: #0d9488;"></i> Laptop & Desktop
                                     </h4>
                                     <ol style="margin-left: 20px; padding: 0; color: #64748b; font-size: 0.85rem; line-height: 1.6;">
-                                        <li>Open DentLedger in <strong>Google Chrome</strong> or <strong>Microsoft Edge</strong>.</li>
+                                        <li>Open DentRecords in <strong>Google Chrome</strong> or <strong>Microsoft Edge</strong>.</li>
                                         <li>Click the <strong>Install Icon</strong> (<i class="fas fa-download"></i>) in the address bar.</li>
-                                        <li>Or, open the browser menu (<i class="fas fa-ellipsis-v"></i>) and select <strong>"Install DentLedger..."</strong>.</li>
+                                        <li>Or, open the browser menu (<i class="fas fa-ellipsis-v"></i>) and select <strong>"Install DentRecords..."</strong>.</li>
                                     </ol>
                                 </div>
                                 <div style="background: #f8fafc; padding: 18px; border-radius: 12px; border: 1px solid #e2e8f0;">
@@ -4512,7 +4512,7 @@ class Router {
     }
 
     async syncToCloud() {
-        const isSyncEnabled = localStorage.getItem('dentledger_drive_sync') === 'true';
+        const isSyncEnabled = localStorage.getItem('dentrecords_drive_sync') === 'true';
         if (!isSyncEnabled) {
             return this.showToast('Please link your Google Drive first (click the badge in the bottom-left sidebar)', 'warning');
         }
@@ -4538,7 +4538,7 @@ class Router {
     }
 
     async restoreFromCloud() {
-        const isSyncEnabled = localStorage.getItem('dentledger_drive_sync') === 'true';
+        const isSyncEnabled = localStorage.getItem('dentrecords_drive_sync') === 'true';
         if (!isSyncEnabled) {
             return this.showToast('Please link your Google Drive first (click the badge in the bottom-left sidebar)', 'warning');
         }
@@ -4565,7 +4565,7 @@ class Router {
                 const a = document.createElement('a');
                 a.style.display = 'none';
                 a.href = url;
-                a.download = `dentledger_backup_${new Date().toLocaleDateString('en-CA')}.json`;
+                a.download = `dentrecords_backup_${new Date().toLocaleDateString('en-CA')}.json`;
                 document.body.appendChild(a);
                 a.click();
                 setTimeout(() => {
@@ -4770,7 +4770,7 @@ class Router {
         // If it's a 10-digit number, add the country code
         const finalPhone = cleanPhone.length === 10 ? countryCode + cleanPhone : cleanPhone;
         
-        const message = encodeURIComponent(`Hi ${patientName}, this is a reminder for your appointment at DentLedger Clinic tomorrow at ${time}. Please confirm if you will be attending. Thank you!`);
+        const message = encodeURIComponent(`Hi ${patientName}, this is a reminder for your appointment at DentRecords Clinic tomorrow at ${time}. Please confirm if you will be attending. Thank you!`);
         const whatsappUrl = `https://wa.me/${finalPhone}?text=${message}`;
         
         // Open in new window

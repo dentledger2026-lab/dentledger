@@ -5,7 +5,7 @@ const fs = require('fs');
 
 // Attempt to find the database in the standard Electron userData path for this app
 const appName = 'clinic-app';
-const dbPath = path.join(os.homedir(), 'AppData', 'Roaming', appName, 'dentledger.db');
+const dbPath = path.join(os.homedir(), 'AppData', 'Roaming', appName, 'dentrecords.db');
 
 if (!fs.existsSync(dbPath)) {
     console.error(`Error: Database not found at ${dbPath}`);

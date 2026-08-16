@@ -15,8 +15,8 @@
     "prepare-share": "electron prepare-share.js"
   },
   "build": {
-    "appId": "com.dentledger.clinic",
-    "productName": "DentLedger",
+    "appId": "com.dentrecords.clinic",
+    "productName": "DentRecords",
     "directories": {
       "output": "dist"
     },

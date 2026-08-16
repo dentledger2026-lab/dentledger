@@ -21,7 +21,17 @@ const sessionDataPath = path.join(baseDataPath, 'sessions', 'active_session');
 if (!fs.existsSync(sessionDataPath)) fs.mkdirSync(sessionDataPath, { recursive: true });
 app.setPath('userData', sessionDataPath);
 
-global.DATABASE_PATH = path.join(baseDataPath, 'dentledger.db');
+const oldDbPath = path.join(baseDataPath, 'dentledger.db');
+const newDbPath = path.join(baseDataPath, 'dentrecords.db');
+if (fs.existsSync(oldDbPath) && !fs.existsSync(newDbPath)) {
+  try {
+    fs.renameSync(oldDbPath, newDbPath);
+    console.log("Migrated database file from dentledger.db to dentrecords.db");
+  } catch (e) {
+    console.error("Failed to rename database file:", e);
+  }
+}
+global.DATABASE_PATH = newDbPath;
 const investigationsDir = path.join(baseDataPath, 'investigations');
 if (!fs.existsSync(investigationsDir)) fs.mkdirSync(investigationsDir, { recursive: true });
 
@@ -52,7 +62,7 @@ app.whenReady().then(() => {
     }
   });
 
-  console.log('Main Process: Booting DentLedger...');
+  console.log('Main Process: Booting DentRecords...');
   console.log('Storage:', investigationsDir);
 
   const db = require('./src/db/database.js');
@@ -84,7 +94,7 @@ app.whenReady().then(() => {
       minWidth: 1000,
       minHeight: 700,
       show: false,
-      title: 'DentLedger',
+      title: 'DentRecords',
       icon: path.join(__dirname, 'assets/icon.png'),
       webPreferences: {
         preload: path.join(__dirname, 'preload.js'),
@@ -193,7 +203,7 @@ app.whenReady().then(() => {
   ipcMain.handle('sync-to-cloud', async (event, destFolder) => {
     try {
       const db = require('./src/db/database.js');
-      const dest = path.join(destFolder, 'dentledger_backup.db');
+      const dest = path.join(destFolder, 'dentrecords_backup.db');
       await db.backup(dest);
       return { success: true };
     } catch (error) {
