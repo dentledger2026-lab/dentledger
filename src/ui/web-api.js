@@ -633,6 +633,10 @@ async function updateDriveFile(token, fileId, content) {
         },
         body: content
     });
+    if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Failed to update Drive file (Status ${res.status}): ${errText}`);
+    }
     return await res.json();
 }
 
@@ -978,12 +982,31 @@ async function uploadDataToGoogleDrive() {
     
     // 1. Sync the JSON database file
     const dbJson = await exportDatabaseToJSON();
-    let fileId = await getDriveFileId(token, folderId, 'dentrecords_data.json');
+    let fileId = localStorage.getItem('google_json_file_id');
+    
+    if (!fileId) {
+        fileId = await getDriveFileId(token, folderId, 'dentrecords_data.json');
+        if (fileId) {
+            localStorage.setItem('google_json_file_id', fileId);
+        }
+    }
     
     if (fileId) {
-        await updateDriveFile(token, fileId, dbJson);
+        try {
+            await updateDriveFile(token, fileId, dbJson);
+        } catch (patchErr) {
+            // If the file was deleted on Drive, clear cache and create new
+            if (patchErr.message && patchErr.message.includes("Status 404")) {
+                localStorage.removeItem('google_json_file_id');
+                const newFileId = await createDriveFile(token, folderId, 'dentrecords_data.json', dbJson);
+                localStorage.setItem('google_json_file_id', newFileId);
+            } else {
+                throw patchErr;
+            }
+        }
     } else {
-        await createDriveFile(token, folderId, 'dentrecords_data.json', dbJson);
+        const newFileId = await createDriveFile(token, folderId, 'dentrecords_data.json', dbJson);
+        localStorage.setItem('google_json_file_id', newFileId);
     }
 
     // 2. Scan and upload all local cached clinical images to Drive
@@ -1027,12 +1050,33 @@ async function uploadDataToGoogleDrive() {
     // 3. Sync the Excel spreadsheet report
     try {
         const excelBuffer = await generateExcelSyncBuffer();
-        let excelFileId = await getDriveFileId(token, folderId, 'dentrecords_sync_report.xlsx');
+        let excelFileId = localStorage.getItem('google_excel_file_id');
+        
+        if (!excelFileId) {
+            excelFileId = await getDriveFileId(token, folderId, 'dentrecords_sync_report.xlsx');
+            if (excelFileId) {
+                localStorage.setItem('google_excel_file_id', excelFileId);
+            }
+        }
+        
         if (excelFileId) {
-            await updateDriveExcelFile(token, excelFileId, excelBuffer);
+            try {
+                await updateDriveExcelFile(token, excelFileId, excelBuffer);
+            } catch (patchErr) {
+                // If Excel file deleted or access issue, recreate
+                if (patchErr.message && (patchErr.message.includes("404") || patchErr.message.includes("403"))) {
+                    localStorage.removeItem('google_excel_file_id');
+                    const newExcelId = await createDriveExcelFileMetadata(token, folderId, 'dentrecords_sync_report.xlsx');
+                    await updateDriveExcelFile(token, newExcelId, excelBuffer);
+                    localStorage.setItem('google_excel_file_id', newExcelId);
+                } else {
+                    throw patchErr;
+                }
+            }
         } else {
             const newExcelId = await createDriveExcelFileMetadata(token, folderId, 'dentrecords_sync_report.xlsx');
             await updateDriveExcelFile(token, newExcelId, excelBuffer);
+            localStorage.setItem('google_excel_file_id', newExcelId);
         }
         console.log("[Sync] Excel sync report successfully updated in background.");
     } catch (excelErr) {
