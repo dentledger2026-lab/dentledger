@@ -90,13 +90,13 @@ class Router {
         }
     }
 
-    showToast(message, type = 'success') {
+    showToast(message, type = 'success', duration = 3000) {
         const container = document.getElementById('toast-container');
         const toast = document.createElement('div');
         toast.className = `toast-notification ${type} show`;
         toast.innerHTML = `<div class="toast-message">${message}</div>`;
         container.appendChild(toast);
-        setTimeout(() => { toast.remove(); }, 3000);
+        setTimeout(() => { toast.remove(); }, duration);
     }
 
     async navigate(view) {
@@ -4556,7 +4556,11 @@ class Router {
             const statusEl = document.getElementById('sync-status');
             if (statusEl) statusEl.innerHTML = `Last synced: ${now}`;
             
-            this.showToast('Backup synced to Google Drive!', 'success');
+            if (result.excelLink) {
+                this.showToast(`Backup synced! <a href="${result.excelLink}" target="_blank" style="text-decoration: underline; color: #fff; font-weight: 700; margin-left: 5px;">Click to Open Excel Report</a>`, 'success', 10000);
+            } else {
+                this.showToast('Backup synced to Google Drive!', 'success');
+            }
         } else {
             this.handleSyncError(result ? result.error : 'Unknown error', 'Sync');
         }
