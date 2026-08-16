@@ -750,6 +750,18 @@ async function uploadImageFileToDrive(token, folderId, fileName, base64Data) {
 }
 
 // Generate three-page Excel workbook binary buffer
+function safeFormatDate(dateVal) {
+    if (!dateVal) return '';
+    try {
+        const d = new Date(dateVal);
+        if (isNaN(d.getTime())) return String(dateVal);
+        return d.toLocaleDateString('en-GB');
+    } catch (e) {
+        return String(dateVal);
+    }
+}
+
+// Generate three-page Excel workbook binary buffer
 async function generateExcelSyncBuffer() {
     const patients = await dbGetAll('patients');
     const dentalRecords = await dbGetAll('dental_records');
@@ -768,7 +780,7 @@ async function generateExcelSyncBuffer() {
     
     // Create mapping of patient records by patient_id
     const recordsMap = {};
-    for (const record of dentalRecords) {
+    for (const record of (dentalRecords || [])) {
         if (record && record.patient_id) {
             const existing = recordsMap[record.patient_id];
             if (!existing || record.id > existing.id) {
@@ -818,14 +830,14 @@ async function generateExcelSyncBuffer() {
     
     // Page 1: Patient Details (Comprehensive clinical and demographic)
     const patientRows = [];
-    for (const p of patients) {
+    for (const p of (patients || [])) {
         const r = recordsMap[p.id] || {};
         patientRows.push({
             "Patient ID": `DR-${p.id}`,
             "Full Name": p.full_name || '',
             "Age": p.age || '',
             "Gender": p.gender || '',
-            "DOB": p.dob ? new Date(p.dob).toLocaleDateString() : '',
+            "DOB": safeFormatDate(p.dob),
             "Primary Contact": p.contact_primary || '',
             "Alternate Contact": p.contact_alternate || '',
             "Email ID": p.email_id || '',
@@ -907,18 +919,18 @@ async function generateExcelSyncBuffer() {
             // Diagnosis & Treatment Strategy
             "Final Concluding Diagnosis": r.diagnosis || '',
             "Master Treatment Strategy": r.treatment_plan || '',
-            "Registered Date": p.created_at ? new Date(p.created_at).toLocaleDateString() : ''
+            "Registered Date": safeFormatDate(p.created_at)
         });
     }
     
     // Page 2: Treatment Logs (One row per patient visit procedure entry)
     const logsRows = [];
     const patientNames = {};
-    for (const p of patients) {
+    for (const p of (patients || [])) {
         patientNames[p.id] = p.full_name;
     }
     
-    const sortedLogs = [...treatmentLogs].sort((a, b) => {
+    const sortedLogs = [...(treatmentLogs || [])].sort((a, b) => {
         const dateA = new Date(a.created_at || 0);
         const dateB = new Date(b.created_at || 0);
         return dateB - dateA;
@@ -928,25 +940,25 @@ async function generateExcelSyncBuffer() {
         logsRows.push({
             "Patient ID": `DR-${log.patient_id}`,
             "Patient Name": patientNames[log.patient_id] || 'Unknown Patient',
-            "Visit Date": log.created_at ? new Date(log.created_at).toLocaleDateString() : '',
+            "Visit Date": safeFormatDate(log.created_at),
             "Procedure / Treatment Done & Clinical Notes": log.procedure_logs || ''
         });
     }
     
     // Page 3: Billing Ledger (One row per billing invoice/transaction)
     const billingRows = [];
-    const sortedBilling = [...billing].sort((a, b) => {
+    const sortedBilling = [...(billing || [])].sort((a, b) => {
         const dateA = new Date(a.created_at || 0);
         const dateB = new Date(b.created_at || 0);
         return dateB - dateA;
     });
-
+ 
     for (const b of sortedBilling) {
         if (b.deleted_at) continue; // Skip deleted billing logs
         billingRows.push({
             "Patient ID": `DR-${b.patient_id}`,
             "Patient Name": patientNames[b.patient_id] || 'Unknown Patient',
-            "Date": b.created_at ? new Date(b.created_at).toLocaleDateString() : '',
+            "Date": safeFormatDate(b.created_at),
             "Treatment Billed": b.treatment_name || '',
             "Total Cost (₹)": b.total_cost || 0,
             "Paid Amount (₹)": b.paid_amount || 0,
@@ -1078,9 +1090,23 @@ async function uploadDataToGoogleDrive() {
             await updateDriveExcelFile(token, newExcelId, excelBuffer);
             localStorage.setItem('google_excel_file_id', newExcelId);
         }
+
+        // Retrieve and cache the webViewLink of the synced Excel sheet
+        const finalExcelId = localStorage.getItem('google_excel_file_id');
+        if (finalExcelId) {
+            const fieldsRes = await fetch(`https://www.googleapis.com/drive/v3/files/${finalExcelId}?fields=webViewLink`, {
+                headers: { "Authorization": `Bearer ${token}` }
+            });
+            if (fieldsRes.ok) {
+                const fieldsData = await fieldsRes.json();
+                const webViewLink = fieldsData.webViewLink || `https://drive.google.com/file/d/${finalExcelId}/view`;
+                await dbPut('clinic_settings', { id: 'google_excel_webview_link', key: 'google_excel_webview_link', value: webViewLink });
+            }
+        }
         console.log("[Sync] Excel sync report successfully updated in background.");
     } catch (excelErr) {
         console.error("[Sync] Background Excel report sync failed:", excelErr);
+        throw new Error("Excel Report Sync Failed: " + excelErr.message);
     }
 }
 
