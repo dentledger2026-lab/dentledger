@@ -4623,23 +4623,37 @@ class Router {
             
             <div class="billing-detail-view fade-in" style="display: grid; grid-template-columns: 1fr 1.2fr; gap: 30px; align-items: start;">
                 <!-- Left Column: Search and Select Patient -->
-                <div class="premium-card" style="padding: 25px;">
-                    <h4 style="font-weight: 800; color: #1e293b; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; font-size: 1.1rem; border-bottom: 1px solid #f1f5f9; padding-bottom: 12px;">
-                        <i class="fas fa-search" style="color: var(--primary);"></i> 1. Search Patient
-                    </h4>
-                    <div class="form-group" style="position: relative;">
-                        <label style="font-weight: 700; font-size: 0.85rem; color: #475569; display: block; margin-bottom: 8px;">Enter Name, Phone, or Patient ID</label>
-                        <div class="input-with-icon">
-                            <i class="fas fa-user" style="color: #94a3b8; left: 15px; position: absolute; top: 12px;"></i>
-                            <input type="text" id="quick-tx-search" placeholder="Type to search..." class="premium-input" style="width: 100%; padding-left: 40px;" oninput="window.router.handleQuickTxSearch(this.value)" autocomplete="off">
+                <div style="display: flex; flex-direction: column; gap: 20px;">
+                    <div class="premium-card" style="padding: 25px;">
+                        <h4 style="font-weight: 800; color: #1e293b; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; font-size: 1.1rem; border-bottom: 1px solid #f1f5f9; padding-bottom: 12px;">
+                            <i class="fas fa-search" style="color: var(--primary);"></i> 1. Search Patient
+                        </h4>
+                        <div class="form-group" style="position: relative; margin-bottom: 0;">
+                            <label style="font-weight: 700; font-size: 0.85rem; color: #475569; display: block; margin-bottom: 8px;">Enter Name, Phone, or Patient ID</label>
+                            <div class="input-with-icon">
+                                <i class="fas fa-user" style="color: #94a3b8; left: 15px; position: absolute; top: 12px;"></i>
+                                <input type="text" id="quick-tx-search" placeholder="Type to search..." class="premium-input" style="width: 100%; padding-left: 40px;" oninput="window.router.handleQuickTxSearch(this.value)" autocomplete="off">
+                            </div>
+                            <div id="quick-tx-results" style="position: absolute; width: 100%; top: 78px; background: white; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); z-index: 100; max-height: 250px; overflow-y: auto; display: none;"></div>
                         </div>
-                        <div id="quick-tx-results" style="position: absolute; width: 100%; top: 78px; background: white; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); z-index: 100; max-height: 250px; overflow-y: auto; display: none;"></div>
                     </div>
                     
-                    <!-- Selected Patient Information -->
-                    <div id="quick-tx-patient-info" style="margin-top: 25px; padding: 25px; border-radius: 16px; border: 1px solid #e2e8f0; background: #f8fafc; text-align: center; min-height: 180px; display: flex; flex-direction: column; justify-content: center; align-items: center;">
-                        <i class="fas fa-user-circle" style="font-size: 3.5rem; color: #cbd5e1; margin-bottom: 15px; display: block;"></i>
-                        <span style="color: #64748b; font-size: 0.9rem; font-weight: 600;">No patient selected yet.<br><span style="font-weight: 500; font-size: 0.8rem; color: #94a3b8;">Search above to load the record.</span></span>
+                    <!-- Selected Patient Information Card -->
+                    <div class="premium-card" style="padding: 25px;" id="quick-tx-patient-info-card">
+                        <div id="quick-tx-patient-info" style="text-align: center; min-height: 100px; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+                            <i class="fas fa-user-circle" style="font-size: 3.5rem; color: #cbd5e1; margin-bottom: 15px; display: block;"></i>
+                            <span style="color: #64748b; font-size: 0.9rem; font-weight: 600;">No patient selected yet.<br><span style="font-weight: 500; font-size: 0.8rem; color: #94a3b8;">Search above to load the record.</span></span>
+                        </div>
+                    </div>
+                    
+                    <!-- Past Treatment History Card -->
+                    <div class="premium-card" style="padding: 25px; display: none;" id="quick-tx-history-card">
+                        <h4 style="font-weight: 800; color: #1e293b; margin-bottom: 15px; display: flex; align-items: center; gap: 10px; font-size: 1rem; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px;">
+                            <i class="fas fa-history" style="color: #f59e0b;"></i> Past Treatment History
+                        </h4>
+                        <div id="quick-tx-history-list" style="max-height: 250px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px;">
+                            <!-- Dynamically populated logs -->
+                        </div>
                     </div>
                 </div>
                 
@@ -4727,7 +4741,7 @@ class Router {
         resultsEl.style.display = 'block';
     }
 
-    selectQuickTxPatient(patientId) {
+    async selectQuickTxPatient(patientId) {
         const patient = this.allQuickTxPatients.find(p => p.id === patientId);
         if (!patient) return;
 
@@ -4764,6 +4778,33 @@ class Router {
                 </button>
             </div>
         `;
+
+        // Fetch and display past treatment history
+        try {
+            const historyRes = await api.invoke('db-query', 'getTreatmentHistory', patientId);
+            const history = historyRes.success ? historyRes.data : [];
+            const historyCard = document.getElementById('quick-tx-history-card');
+            const historyList = document.getElementById('quick-tx-history-list');
+            
+            if (history.length === 0) {
+                historyList.innerHTML = `<div style="text-align: center; padding: 20px; color: #94a3b8; font-size: 0.85rem;">No past treatment logs found for this patient.</div>`;
+            } else {
+                historyList.innerHTML = history.map(h => {
+                    const dateStr = h.created_at ? new Date(h.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Unknown Date';
+                    return `
+                        <div style="background: #f8fafc; border-left: 4px solid var(--primary); padding: 12px 15px; border-radius: 0 10px 10px 0; border: 1px solid #e2e8f0; border-left-width: 4px;">
+                            <div style="font-size: 0.75rem; font-weight: 800; color: #64748b; margin-bottom: 6px; display: flex; justify-content: space-between;">
+                                <span><i class="far fa-calendar-alt"></i> ${dateStr}</span>
+                            </div>
+                            <div style="font-size: 0.85rem; color: #334155; line-height: 1.4; white-space: pre-wrap; font-weight: 500;">${h.procedure_logs || 'No notes entered.'}</div>
+                        </div>
+                    `;
+                }).join('');
+            }
+            historyCard.style.display = 'block';
+        } catch (e) {
+            console.error("Failed to load treatment history:", e);
+        }
 
         // Enable form container
         const form = document.getElementById('quick-tx-form-container');
