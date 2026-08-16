@@ -990,29 +990,33 @@ async function uploadDataToGoogleDrive() {
     try {
         const settings = await dbGetAll('clinic_settings');
         for (const item of settings) {
-            if (item && item.key && item.key.startsWith('image_') && item.value) {
-                const imgFileName = item.key.replace('image_', '');
-                const cacheLinkKey = `image_link_${imgFileName}`;
-                
-                const cachedLink = settings.find(s => s.key === cacheLinkKey);
-                if (!cachedLink) {
-                    console.log(`[Sync] Uploading clinical image to Google Drive: ${imgFileName}`);
-                    let imgFileId = await getDriveFileId(token, folderId, imgFileName);
-                    let driveUrl = "";
-                    if (imgFileId) {
-                        const fieldsRes = await fetch(`https://www.googleapis.com/drive/v3/files/${imgFileId}?fields=webViewLink`, {
-                            headers: { "Authorization": `Bearer ${token}` }
-                        });
-                        const fieldsData = await fieldsRes.json();
-                        driveUrl = fieldsData.webViewLink || `https://drive.google.com/file/d/${imgFileId}/view`;
-                    } else {
-                        driveUrl = await uploadImageFileToDrive(token, folderId, imgFileName, item.value);
-                    }
+            if (item && item.key && item.key.startsWith('image_') && !item.key.startsWith('image_link_') && item.value) {
+                try {
+                    const imgFileName = item.key.replace('image_', '');
+                    const cacheLinkKey = `image_link_${imgFileName}`;
                     
-                    if (driveUrl) {
-                        await dbPut('clinic_settings', { id: cacheLinkKey, key: cacheLinkKey, value: driveUrl });
-                        console.log(`[Sync] Image uploaded and link cached: ${imgFileName} -> ${driveUrl}`);
+                    const cachedLink = settings.find(s => s.key === cacheLinkKey);
+                    if (!cachedLink) {
+                        console.log(`[Sync] Uploading clinical image to Google Drive: ${imgFileName}`);
+                        let imgFileId = await getDriveFileId(token, folderId, imgFileName);
+                        let driveUrl = "";
+                        if (imgFileId) {
+                            const fieldsRes = await fetch(`https://www.googleapis.com/drive/v3/files/${imgFileId}?fields=webViewLink`, {
+                                headers: { "Authorization": `Bearer ${token}` }
+                            });
+                            const fieldsData = await fieldsRes.json();
+                            driveUrl = fieldsData.webViewLink || `https://drive.google.com/file/d/${imgFileId}/view`;
+                        } else {
+                            driveUrl = await uploadImageFileToDrive(token, folderId, imgFileName, item.value);
+                        }
+                        
+                        if (driveUrl) {
+                            await dbPut('clinic_settings', { id: cacheLinkKey, key: cacheLinkKey, value: driveUrl });
+                            console.log(`[Sync] Image uploaded and link cached: ${imgFileName} -> ${driveUrl}`);
+                        }
                     }
+                } catch (singleImageErr) {
+                    console.error(`[Sync] Failed to process individual image ${item.key}:`, singleImageErr);
                 }
             }
         }
