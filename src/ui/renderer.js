@@ -4512,6 +4512,24 @@ class Router {
         }
     }
 
+    handleSyncError(errorMsg, type = 'Sync') {
+        console.error(`${type} failed:`, errorMsg);
+        const lower = (errorMsg || '').toLowerCase();
+        if (lower.includes('401') || lower.includes('unauthenticated') || lower.includes('auth') || lower.includes('credential') || lower.includes('token')) {
+            this.showConfirmModal(
+                'Google Drive Session Expired',
+                'Your Google Drive authorization has expired or is invalid. Would you like to reconnect your Google account now to resume cloud sync?',
+                async () => {
+                    if (window.reconnectGoogleDrive) {
+                        await window.reconnectGoogleDrive();
+                    }
+                }
+            );
+        } else {
+            this.showToast(`${type} Error: ${errorMsg}`, 'error');
+        }
+    }
+
     async syncToCloud() {
         const isSyncEnabled = localStorage.getItem('dentrecords_drive_sync') === 'true';
         if (!isSyncEnabled) {
@@ -4533,8 +4551,7 @@ class Router {
             
             this.showToast('Backup synced to Google Drive!', 'success');
         } else {
-            console.error('Sync failed:', result ? result.error : 'Unknown error');
-            this.showToast('Sync Error: ' + (result ? result.error : 'Unknown error'), 'error');
+            this.handleSyncError(result ? result.error : 'Unknown error', 'Sync');
         }
     }
 
@@ -4551,7 +4568,7 @@ class Router {
                 this.showToast('Database restored successfully! Reloading...', 'success');
                 setTimeout(() => window.location.reload(), 1500);
             } else {
-                this.showToast('Restore failed: ' + (result ? result.error : 'Unknown error'), 'error');
+                this.handleSyncError(result ? result.error : 'Unknown error', 'Restore');
             }
         });
     }
