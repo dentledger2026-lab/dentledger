@@ -831,6 +831,7 @@ async function generateExcelSyncBuffer() {
     // Page 1: Patient Details (Comprehensive clinical and demographic)
     const patientRows = [];
     for (const p of (patients || [])) {
+        if (!p) continue;
         const r = recordsMap[p.id] || {};
         patientRows.push({
             "Patient ID": `DR-${p.id}`,
@@ -927,6 +928,7 @@ async function generateExcelSyncBuffer() {
     const logsRows = [];
     const patientNames = {};
     for (const p of (patients || [])) {
+        if (!p) continue;
         patientNames[p.id] = p.full_name;
     }
     
@@ -937,6 +939,7 @@ async function generateExcelSyncBuffer() {
     });
     
     for (const log of sortedLogs) {
+        if (!log) continue;
         logsRows.push({
             "Patient ID": `DR-${log.patient_id}`,
             "Patient Name": patientNames[log.patient_id] || 'Unknown Patient',
@@ -954,6 +957,7 @@ async function generateExcelSyncBuffer() {
     });
  
     for (const b of sortedBilling) {
+        if (!b) continue;
         if (b.deleted_at) continue; // Skip deleted billing logs
         billingRows.push({
             "Patient ID": `DR-${b.patient_id}`,
