@@ -1000,6 +1000,28 @@ async function uploadDataToGoogleDrive() {
     const dbJson = await exportDatabaseToJSON();
     let fileId = localStorage.getItem('google_json_file_id');
     
+    if (fileId) {
+        // Validate that cached JSON file ID is active and not trashed
+        try {
+            const checkRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=trashed`, {
+                headers: { "Authorization": `Bearer ${token}` }
+            });
+            if (checkRes.ok) {
+                const checkData = await checkRes.json();
+                if (checkData.trashed) {
+                    fileId = null;
+                    localStorage.removeItem('google_json_file_id');
+                }
+            } else {
+                fileId = null;
+                localStorage.removeItem('google_json_file_id');
+            }
+        } catch (e) {
+            fileId = null;
+            localStorage.removeItem('google_json_file_id');
+        }
+    }
+    
     if (!fileId) {
         fileId = await getDriveFileId(token, folderId, 'dentrecords_data.json');
         if (fileId) {
@@ -1067,6 +1089,28 @@ async function uploadDataToGoogleDrive() {
     try {
         const excelBuffer = await generateExcelSyncBuffer();
         let excelFileId = localStorage.getItem('google_excel_file_id');
+        
+        if (excelFileId) {
+            // Validate that cached Excel file ID is active and not trashed
+            try {
+                const checkRes = await fetch(`https://www.googleapis.com/drive/v3/files/${excelFileId}?fields=trashed`, {
+                    headers: { "Authorization": `Bearer ${token}` }
+                });
+                if (checkRes.ok) {
+                    const checkData = await checkRes.json();
+                    if (checkData.trashed) {
+                        excelFileId = null;
+                        localStorage.removeItem('google_excel_file_id');
+                    }
+                } else {
+                    excelFileId = null;
+                    localStorage.removeItem('google_excel_file_id');
+                }
+            } catch (e) {
+                excelFileId = null;
+                localStorage.removeItem('google_excel_file_id');
+            }
+        }
         
         if (!excelFileId) {
             excelFileId = await getDriveFileId(token, folderId, 'dentrecords_sync_report.xlsx');
