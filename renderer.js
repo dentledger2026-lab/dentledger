@@ -4619,6 +4619,43 @@ class Router {
             .tx-search-item:last-child {
                 border-bottom: none;
             }
+            .calendar-day-item {
+                height: 32px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 0.8rem;
+                font-weight: 700;
+                border-radius: 8px;
+                cursor: pointer;
+                transition: all 0.2s;
+            }
+            .calendar-day-item:hover {
+                background: #f1f5f9;
+            }
+            .calendar-day-item.active {
+                background: var(--primary) !important;
+                color: white !important;
+            }
+            .calendar-day-item.today {
+                border: 2px solid #cbd5e1;
+            }
+            .time-item {
+                padding: 6px;
+                border-radius: 8px;
+                cursor: pointer;
+                font-weight: 700;
+                font-size: 0.85rem;
+                color: #475569;
+                transition: all 0.2s;
+            }
+            .time-item:hover {
+                background: #f1f5f9;
+            }
+            .time-item.active {
+                background: var(--primary) !important;
+                color: white !important;
+            }
             </style>
             
             <div class="billing-detail-view fade-in" style="display: grid; grid-template-columns: 1fr 1.2fr; gap: 30px; align-items: start;">
@@ -4658,7 +4695,7 @@ class Router {
                 </div>
                 
                 <!-- Right Column: Record Treatment & Next Visit -->
-                <div class="premium-card" style="padding: 25px; opacity: 0.5; pointer-events: none; transition: opacity 0.3s;" id="quick-tx-form-container">
+                <div class="premium-card" style="padding: 25px; opacity: 0.5; pointer-events: none; transition: opacity 0.3s; overflow: visible;" id="quick-tx-form-container">
                     <h4 style="font-weight: 800; color: #1e293b; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; font-size: 1.1rem; border-bottom: 1px solid #f1f5f9; padding-bottom: 12px;">
                         <i class="fas fa-file-medical" style="color: #0ea5e9;"></i> 2. Record Treatment & Appointments
                     </h4>
@@ -4680,16 +4717,60 @@ class Router {
                         </div>
                         
                         <div id="quick-tx-appointment-inputs" style="display: none; grid-template-columns: 1fr 1fr; gap: 15px;">
-                            <div class="form-group">
+                            <div class="form-group" style="position: relative;">
                                 <label style="font-weight: 700; font-size: 0.8rem; color: #475569; display: block; margin-bottom: 6px;">Next Date</label>
-                                <input type="date" id="quick-tx-next-date" class="premium-input" style="width: 100%;">
+                                <div class="input-with-icon" onclick="event.stopPropagation(); window.router.toggleQuickTxCalendar();">
+                                    <i class="far fa-calendar-alt" style="color: #94a3b8; left: 15px; position: absolute; top: 12px; cursor: pointer;"></i>
+                                    <input type="text" id="quick-tx-next-date" readonly class="premium-input" style="width: 100%; padding-left: 40px; cursor: pointer;" placeholder="Select Date">
+                                </div>
+                                
+                                <!-- Floating Custom Calendar -->
+                                <div id="quick-tx-calendar-popover" style="position: absolute; display: none; width: 280px; top: 78px; left: 0; background: white; border: 1px solid #e2e8f0; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); z-index: 1000; padding: 15px;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                                        <button onclick="event.stopPropagation(); window.router.changeQuickTxCalendarMonth(-1)" style="background: none; border: none; cursor: pointer; color: #64748b;"><i class="fas fa-chevron-left"></i></button>
+                                        <span id="quick-tx-calendar-title" style="font-weight: 800; font-size: 0.9rem; color: #1e293b;"></span>
+                                        <button onclick="event.stopPropagation(); window.router.changeQuickTxCalendarMonth(1)" style="background: none; border: none; cursor: pointer; color: #64748b;"><i class="fas fa-chevron-right"></i></button>
+                                    </div>
+                                    <div style="display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; margin-bottom: 8px; font-weight: 700; font-size: 0.75rem; color: #94a3b8;">
+                                        <span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span>
+                                    </div>
+                                    <div id="quick-tx-calendar-grid" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px;"></div>
+                                </div>
                             </div>
-                            <div class="form-group">
+                            
+                            <div class="form-group" style="position: relative;">
                                 <label style="font-weight: 700; font-size: 0.8rem; color: #475569; display: block; margin-bottom: 6px;">Next Time</label>
-                                <input type="time" id="quick-tx-next-time" class="premium-input" style="width: 100%;">
+                                <div class="input-with-icon" onclick="event.stopPropagation(); window.router.toggleQuickTxTimePicker();">
+                                    <i class="far fa-clock" style="color: #94a3b8; left: 15px; position: absolute; top: 12px; cursor: pointer;"></i>
+                                    <input type="text" id="quick-tx-next-time" readonly class="premium-input" style="width: 100%; padding-left: 40px; cursor: pointer;" placeholder="Select Time">
+                                </div>
+                                
+                                <!-- Floating Custom Time Picker -->
+                                <div id="quick-tx-time-popover" style="position: absolute; display: none; width: 240px; top: 78px; left: 0; background: white; border: 1px solid #e2e8f0; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); z-index: 1000; padding: 15px; grid-template-columns: 1fr 1fr 1fr; gap: 8px; text-align: center;">
+                                    <div>
+                                        <div style="font-size: 0.7rem; font-weight: 800; color: #94a3b8; margin-bottom: 6px;">HOUR</div>
+                                        <div id="quick-tx-time-hours" style="height: 120px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px;">
+                                            <!-- Hours -->
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div style="font-size: 0.7rem; font-weight: 800; color: #94a3b8; margin-bottom: 6px;">MIN</div>
+                                        <div id="quick-tx-time-minutes" style="height: 120px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px;">
+                                            <!-- Minutes -->
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div style="font-size: 0.7rem; font-weight: 800; color: #94a3b8; margin-bottom: 6px;">AM/PM</div>
+                                        <div id="quick-tx-time-ampm" style="height: 120px; display: flex; flex-direction: column; gap: 6px; justify-content: center;">
+                                            <div onclick="event.stopPropagation(); window.router.selectQuickTxTimePeriod('AM')" class="time-item" id="quick-tx-ampm-am">AM</div>
+                                            <div onclick="event.stopPropagation(); window.router.selectQuickTxTimePeriod('PM')" class="time-item" id="quick-tx-ampm-pm">PM</div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
+                            
                             <div class="form-group" style="grid-column: span 2;">
-                                <label style="font-weight: 700; font-size: 0.8rem; color: #475569; display: block; margin-bottom: 6px;">Appointment Notes</label>
+                                <label style="font-weight: 700; font-size: 0.85rem; color: #475569; display: block; margin-bottom: 6px;">Appointment Notes</label>
                                 <input type="text" id="quick-tx-next-notes" placeholder="e.g. RCT Sitting 2 / Crown prep / Ortho check" class="premium-input" style="width: 100%;">
                             </div>
                         </div>
@@ -4703,6 +4784,21 @@ class Router {
                 </div>
             </div>
         `;
+
+        // Register popovers outside click dismisser
+        const closePopovers = (e) => {
+            const calPopover = document.getElementById('quick-tx-calendar-popover');
+            const timePopover = document.getElementById('quick-tx-time-popover');
+            if (calPopover && !e.target.closest('#quick-tx-calendar-popover') && !e.target.closest('[onclick*="toggleQuickTxCalendar"]')) {
+                calPopover.style.display = 'none';
+            }
+            if (timePopover && !e.target.closest('#quick-tx-time-popover') && !e.target.closest('[onclick*="toggleQuickTxTimePicker"]')) {
+                timePopover.style.display = 'none';
+            }
+        };
+        document.removeEventListener('click', this.quickTxGlobalClick);
+        this.quickTxGlobalClick = closePopovers;
+        document.addEventListener('click', this.quickTxGlobalClick);
 
         try {
             const res = await api.invoke('db-query', 'getAllPatients');
@@ -4824,9 +4920,135 @@ class Router {
         if (checked) {
             const tomorrow = new Date();
             tomorrow.setDate(tomorrow.getDate() + 1);
-            document.getElementById('quick-tx-next-date').value = tomorrow.toLocaleDateString('en-CA');
-            document.getElementById('quick-tx-next-time').value = '10:00';
+            
+            this.selectedQuickTxDate = tomorrow;
+            this.quickTxViewDate = new Date(tomorrow);
+            this.selectedQuickTxHour = '10';
+            this.selectedQuickTxMinute = '00';
+            this.selectedQuickTxAmPm = 'AM';
+            
+            document.getElementById('quick-tx-next-date').value = String(tomorrow.getDate()).padStart(2, '0') + '-' + String(tomorrow.getMonth() + 1).padStart(2, '0') + '-' + tomorrow.getFullYear();
+            document.getElementById('quick-tx-next-time').value = '10:00 AM';
+            
+            this.renderQuickTxCalendarGrid();
+            this.renderQuickTxTimeOptions();
         }
+    }
+
+    toggleQuickTxCalendar() {
+        const cal = document.getElementById('quick-tx-calendar-popover');
+        const time = document.getElementById('quick-tx-time-popover');
+        if (time) time.style.display = 'none';
+        if (cal) {
+            cal.style.display = cal.style.display === 'block' ? 'none' : 'block';
+        }
+    }
+
+    toggleQuickTxTimePicker() {
+        const cal = document.getElementById('quick-tx-calendar-popover');
+        const time = document.getElementById('quick-tx-time-popover');
+        if (cal) cal.style.display = 'none';
+        if (time) {
+            time.style.display = time.style.display === 'grid' ? 'none' : 'grid';
+        }
+    }
+
+    changeQuickTxCalendarMonth(dir) {
+        if (!this.quickTxViewDate) this.quickTxViewDate = new Date();
+        this.quickTxViewDate.setMonth(this.quickTxViewDate.getMonth() + dir);
+        this.renderQuickTxCalendarGrid();
+    }
+
+    renderQuickTxCalendarGrid() {
+        const grid = document.getElementById('quick-tx-calendar-grid');
+        const title = document.getElementById('quick-tx-calendar-title');
+        if (!grid || !title) return;
+
+        if (!this.quickTxViewDate) this.quickTxViewDate = new Date();
+        const date = this.quickTxViewDate;
+        const year = date.getFullYear();
+        const month = date.getMonth();
+
+        title.innerText = date.toLocaleString('default', { month: 'long', year: 'numeric' });
+
+        const firstDay = new Date(year, month, 1).getDay();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const today = new Date();
+
+        grid.innerHTML = '';
+
+        // Empty spaces
+        for (let i = 0; i < firstDay; i++) {
+            grid.innerHTML += `<div></div>`;
+        }
+
+        // Days
+        for (let d = 1; d <= daysInMonth; d++) {
+            const isToday = today.getDate() === d && today.getMonth() === month && today.getFullYear() === year;
+            const isSelected = this.selectedQuickTxDate && this.selectedQuickTxDate.getDate() === d && this.selectedQuickTxDate.getMonth() === month && this.selectedQuickTxDate.getFullYear() === year;
+            
+            grid.innerHTML += `
+                <div class="calendar-day-item ${isToday ? 'today' : ''} ${isSelected ? 'active' : ''}" 
+                     onclick="event.stopPropagation(); window.router.selectQuickTxDate(${year}, ${month}, ${d})"
+                     style="${isSelected ? 'background: var(--primary); color: white;' : ''}">
+                    ${d}
+                </div>
+            `;
+        }
+    }
+
+    selectQuickTxDate(y, m, d) {
+        this.selectedQuickTxDate = new Date(y, m, d);
+        this.quickTxViewDate = new Date(y, m, d);
+        
+        document.getElementById('quick-tx-next-date').value = String(d).padStart(2, '0') + '-' + String(m + 1).padStart(2, '0') + '-' + y;
+        document.getElementById('quick-tx-calendar-popover').style.display = 'none';
+    }
+
+    renderQuickTxTimeOptions() {
+        const hrsContainer = document.getElementById('quick-tx-time-hours');
+        const minsContainer = document.getElementById('quick-tx-time-minutes');
+        if (!hrsContainer || !minsContainer) return;
+
+        // Render hours
+        hrsContainer.innerHTML = Array.from({length: 12}).map((_, i) => {
+            const h = String(i + 1).padStart(2, '0');
+            const isActive = this.selectedQuickTxHour === h;
+            return `<div onclick="event.stopPropagation(); window.router.selectQuickTxHour('${h}')" class="time-item ${isActive ? 'active' : ''}">${h}</div>`;
+        }).join('');
+
+        // Render minutes (every 5 mins)
+        minsContainer.innerHTML = Array.from({length: 12}).map((_, i) => {
+            const m = String(i * 5).padStart(2, '0');
+            const isActive = this.selectedQuickTxMinute === m;
+            return `<div onclick="event.stopPropagation(); window.router.selectQuickTxMinute('${m}')" class="time-item ${isActive ? 'active' : ''}">${m}</div>`;
+        }).join('');
+
+        // Highlights AM/PM
+        document.getElementById('quick-tx-ampm-am').className = `time-item ${this.selectedQuickTxAmPm === 'AM' ? 'active' : ''}`;
+        document.getElementById('quick-tx-ampm-pm').className = `time-item ${this.selectedQuickTxAmPm === 'PM' ? 'active' : ''}`;
+    }
+
+    selectQuickTxHour(h) {
+        this.selectedQuickTxHour = h;
+        this.renderQuickTxTimeOptions();
+        this.updateQuickTxTimeInput();
+    }
+
+    selectQuickTxMinute(m) {
+        this.selectedQuickTxMinute = m;
+        this.renderQuickTxTimeOptions();
+        this.updateQuickTxTimeInput();
+    }
+
+    selectQuickTxTimePeriod(p) {
+        this.selectedQuickTxAmPm = p;
+        this.renderQuickTxTimeOptions();
+        this.updateQuickTxTimeInput();
+    }
+
+    updateQuickTxTimeInput() {
+        document.getElementById('quick-tx-next-time').value = `${this.selectedQuickTxHour}:${this.selectedQuickTxMinute} ${this.selectedQuickTxAmPm}`;
     }
 
     async saveQuickVisitLog() {
@@ -4854,16 +5076,22 @@ class Router {
 
             const scheduleChecked = document.getElementById('quick-tx-schedule-toggle').checked;
             if (scheduleChecked) {
-                const nextDate = document.getElementById('quick-tx-next-date').value;
-                const nextTime = document.getElementById('quick-tx-next-time').value;
-                const nextNotes = document.getElementById('quick-tx-next-notes').value.trim();
-
-                if (!nextDate || !nextTime) {
-                    this.showToast('Treatment saved, but please select date and time for next appointment!', 'warning');
+                const nextDate = this.selectedQuickTxDate;
+                let hour = parseInt(this.selectedQuickTxHour);
+                if (this.selectedQuickTxAmPm === 'PM' && hour < 12) hour += 12;
+                if (this.selectedQuickTxAmPm === 'AM' && hour === 12) hour = 0;
+                const min = this.selectedQuickTxMinute;
+                
+                if (!nextDate) {
+                    this.showToast('Treatment saved, but next appointment date was invalid!', 'warning');
                 } else {
+                    const nextDateStr = nextDate.toLocaleDateString('en-CA'); // YYYY-MM-DD
+                    const nextTimeStr = `${String(hour).padStart(2, '0')}:${min}:00`;
+                    const nextNotes = document.getElementById('quick-tx-next-notes').value.trim();
+
                     await api.invoke('db-query', 'saveAppointment', {
                         patient_id: this.selectedQuickTxPatient.id,
-                        appointment_date: `${nextDate}T${nextTime}:00`,
+                        appointment_date: `${nextDateStr}T${nextTimeStr}`,
                         notes: nextNotes
                     });
                 }
