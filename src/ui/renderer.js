@@ -4624,7 +4624,7 @@ class Router {
             <div class="billing-detail-view fade-in" style="display: grid; grid-template-columns: 1fr 1.2fr; gap: 30px; align-items: start;">
                 <!-- Left Column: Search and Select Patient -->
                 <div style="display: flex; flex-direction: column; gap: 20px;">
-                    <div class="premium-card" style="padding: 25px;">
+                    <div class="premium-card" style="padding: 25px; overflow: visible;">
                         <h4 style="font-weight: 800; color: #1e293b; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; font-size: 1.1rem; border-bottom: 1px solid #f1f5f9; padding-bottom: 12px;">
                             <i class="fas fa-search" style="color: var(--primary);"></i> 1. Search Patient
                         </h4>
