@@ -640,6 +640,124 @@ async function downloadDriveFile(token, fileId) {
     return await res.text();
 }
 
+// Excel Upload Helpers
+async function createDriveExcelFileMetadata(token, folderId, fileName) {
+    const res = await fetch("https://www.googleapis.com/drive/v3/files", {
+        method: "POST",
+        headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            name: fileName,
+            parents: [folderId],
+            mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        })
+    });
+    if (!res.ok) {
+        const errText = await res.text();
+        throw new Error("Failed to create Excel metadata: " + errText);
+    }
+    const data = await res.json();
+    return data.id;
+}
+
+async function updateDriveExcelFile(token, fileId, arrayBuffer) {
+    const res = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
+        method: "PATCH",
+        headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        },
+        body: arrayBuffer
+    });
+    if (!res.ok) {
+        const errText = await res.text();
+        throw new Error("Failed to update Excel media: " + errText);
+    }
+    return await res.json();
+}
+
+// Generate two-page Excel workbook binary buffer
+async function generateExcelSyncBuffer() {
+    const patients = await dbGetAll('patients');
+    const dentalRecords = await dbGetAll('dental_records');
+    const billing = await dbGetAll('billing');
+    
+    // Create mapping of patient records by patient_id
+    const recordsMap = {};
+    for (const record of dentalRecords) {
+        if (record && record.patient_id) {
+            const existing = recordsMap[record.patient_id];
+            if (!existing || record.id > existing.id) {
+                recordsMap[record.patient_id] = record;
+            }
+        }
+    }
+    
+    // Page 1: Patient Details
+    const patientRows = [];
+    for (const p of patients) {
+        const record = recordsMap[p.id] || {};
+        patientRows.push({
+            "Patient ID": `DL-${p.id}`,
+            "Full Name": p.full_name || '',
+            "Age": p.age || '',
+            "Gender": p.gender || '',
+            "DOB": p.dob ? new Date(p.dob).toLocaleDateString() : '',
+            "Primary Contact": p.contact_primary || '',
+            "Alternate Contact": p.contact_alternate || '',
+            "Email ID": p.email_id || '',
+            "Occupation": p.occupation || '',
+            "Address": p.address || '',
+            "Chief Complaint": record.chief_complaint || '',
+            "Medical History": record.medical_history || '',
+            "Diagnosis": record.diagnosis || '',
+            "Treatment Plan": record.treatment_plan || '',
+            "Registered Date": p.created_at ? new Date(p.created_at).toLocaleDateString() : ''
+        });
+    }
+    
+    // Page 2: Billing Ledger
+    const billingRows = [];
+    const patientNames = {};
+    for (const p of patients) {
+        patientNames[p.id] = p.full_name;
+    }
+    
+    // Sort billing items newest first
+    const sortedBilling = [...billing].sort((a, b) => {
+        const dateA = new Date(a.created_at || 0);
+        const dateB = new Date(b.created_at || 0);
+        return dateB - dateA;
+    });
+
+    for (const b of sortedBilling) {
+        if (b.deleted_at) continue; // Skip deleted billing logs
+        billingRows.push({
+            "Patient ID": `DL-${b.patient_id}`,
+            "Patient Name": patientNames[b.patient_id] || 'Unknown Patient',
+            "Date": b.created_at ? new Date(b.created_at).toLocaleDateString() : '',
+            "Treatment Name": b.treatment_name || '',
+            "Total Cost": b.total_cost || 0,
+            "Paid Amount": b.paid_amount || 0,
+            "Balance Amount": b.balance_amount || 0,
+            "Payment Mode": b.payment_mode || ''
+        });
+    }
+    
+    // Build Excel workbook
+    const wb = XLSX.utils.book_new();
+    const wsPatients = XLSX.utils.json_to_sheet(patientRows);
+    const wsBilling = XLSX.utils.json_to_sheet(billingRows);
+    
+    XLSX.utils.book_append_sheet(wb, wsPatients, "Patient Details");
+    XLSX.utils.book_append_sheet(wb, wsBilling, "Billing Ledger");
+    
+    // Write to array buffer
+    return XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+}
+
 // Drive Sync Orchestration
 async function uploadDataToGoogleDrive() {
     const token = localStorage.getItem('google_access_token');
@@ -651,6 +769,7 @@ async function uploadDataToGoogleDrive() {
         localStorage.setItem('google_folder_id', folderId);
     }
     
+    // 1. Sync the JSON database file
     const dbJson = await exportDatabaseToJSON();
     let fileId = await getDriveFileId(token, folderId, 'dentledger_data.json');
     
@@ -658,6 +777,21 @@ async function uploadDataToGoogleDrive() {
         await updateDriveFile(token, fileId, dbJson);
     } else {
         await createDriveFile(token, folderId, 'dentledger_data.json', dbJson);
+    }
+
+    // 2. Sync the Excel spreadsheet report
+    try {
+        const excelBuffer = await generateExcelSyncBuffer();
+        let excelFileId = await getDriveFileId(token, folderId, 'dentledger_sync_report.xlsx');
+        if (excelFileId) {
+            await updateDriveExcelFile(token, excelFileId, excelBuffer);
+        } else {
+            const newExcelId = await createDriveExcelFileMetadata(token, folderId, 'dentledger_sync_report.xlsx');
+            await updateDriveExcelFile(token, newExcelId, excelBuffer);
+        }
+        console.log("[Sync] Excel sync report successfully updated in background.");
+    } catch (excelErr) {
+        console.error("[Sync] Background Excel report sync failed:", excelErr);
     }
 }
 
