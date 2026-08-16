@@ -1187,7 +1187,6 @@ window.reconnectGoogleDrive = async () => {
             localStorage.setItem('dentrecords_drive_sync', 'true');
             console.log("[Web API] Token successfully generated.");
             
-            await tryRestoreFromDrive(credential.accessToken);
             await uploadDataToGoogleDrive();
             updateSyncStatusUI(true, "Cloud Sync Connected");
             window.location.reload();
