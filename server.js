@@ -12,5 +12,5 @@ app.get('*', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`DentLedger Web App is running on http://localhost:${PORT}`);
+  console.log(`DentRecords Web App is running on http://localhost:${PORT}`);
 });
