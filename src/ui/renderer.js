@@ -111,6 +111,7 @@ class Router {
             this.currentView = view;
             if (view === 'dashboard') await this.renderDashboard();
             else if (view === 'patients') await this.renderPatients();
+            else if (view === 'treatment_log') await this.renderTreatmentLog();
             else if (view === 'billing') await this.renderBilling();
             else if (view === 'calendar') await this.renderCalendar();
             else if (view === 'reminders') await this.renderReminders();
@@ -4579,6 +4580,262 @@ class Router {
         } catch (e) {
             console.error('Backup download error:', e);
             this.showToast('Backup download failed', 'error');
+        }
+    }
+
+    async renderTreatmentLog() {
+        document.getElementById('view-title').innerText = 'Daily Treatment Done';
+        document.getElementById('view-subtitle').innerText = 'Record patient procedures and book follow-up appointments instantly';
+
+        const mainContent = document.getElementById('main-content');
+        this.selectedQuickTxPatient = null;
+        
+        mainContent.innerHTML = `
+            <style>
+            .switch-slider {
+                position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #cbd5e1; transition: .3s; border-radius: 24px;
+            }
+            .switch-slider:before {
+                position: absolute; content: ""; height: 16px; width: 16px; left: 4px; bottom: 4px; background-color: white; transition: .3s; border-radius: 50%;
+            }
+            input:checked + .switch-slider {
+                background-color: #0d9488;
+            }
+            input:checked + .switch-slider:before {
+                transform: translateX(20px);
+            }
+            .tx-search-item {
+                padding: 12px 16px;
+                border-bottom: 1px solid #f1f5f9;
+                cursor: pointer;
+                font-size: 0.9rem;
+                color: #334155;
+                font-weight: 500;
+                transition: background 0.2s;
+            }
+            .tx-search-item:hover {
+                background: #f1f5f9;
+            }
+            .tx-search-item:last-child {
+                border-bottom: none;
+            }
+            </style>
+            
+            <div class="billing-detail-view fade-in" style="display: grid; grid-template-columns: 1fr 1.2fr; gap: 30px; align-items: start;">
+                <!-- Left Column: Search and Select Patient -->
+                <div class="premium-card" style="padding: 25px;">
+                    <h4 style="font-weight: 800; color: #1e293b; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; font-size: 1.1rem; border-bottom: 1px solid #f1f5f9; padding-bottom: 12px;">
+                        <i class="fas fa-search" style="color: var(--primary);"></i> 1. Search Patient
+                    </h4>
+                    <div class="form-group" style="position: relative;">
+                        <label style="font-weight: 700; font-size: 0.85rem; color: #475569; display: block; margin-bottom: 8px;">Enter Name, Phone, or Patient ID</label>
+                        <div class="input-with-icon">
+                            <i class="fas fa-user" style="color: #94a3b8; left: 15px; position: absolute; top: 12px;"></i>
+                            <input type="text" id="quick-tx-search" placeholder="Type to search..." class="premium-input" style="width: 100%; padding-left: 40px;" oninput="window.router.handleQuickTxSearch(this.value)" autocomplete="off">
+                        </div>
+                        <div id="quick-tx-results" style="position: absolute; width: 100%; top: 78px; background: white; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); z-index: 100; max-height: 250px; overflow-y: auto; display: none;"></div>
+                    </div>
+                    
+                    <!-- Selected Patient Information -->
+                    <div id="quick-tx-patient-info" style="margin-top: 25px; padding: 25px; border-radius: 16px; border: 1px solid #e2e8f0; background: #f8fafc; text-align: center; min-height: 180px; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+                        <i class="fas fa-user-circle" style="font-size: 3.5rem; color: #cbd5e1; margin-bottom: 15px; display: block;"></i>
+                        <span style="color: #64748b; font-size: 0.9rem; font-weight: 600;">No patient selected yet.<br><span style="font-weight: 500; font-size: 0.8rem; color: #94a3b8;">Search above to load the record.</span></span>
+                    </div>
+                </div>
+                
+                <!-- Right Column: Record Treatment & Next Visit -->
+                <div class="premium-card" style="padding: 25px; opacity: 0.5; pointer-events: none; transition: opacity 0.3s;" id="quick-tx-form-container">
+                    <h4 style="font-weight: 800; color: #1e293b; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; font-size: 1.1rem; border-bottom: 1px solid #f1f5f9; padding-bottom: 12px;">
+                        <i class="fas fa-file-medical" style="color: #0ea5e9;"></i> 2. Record Treatment & Appointments
+                    </h4>
+                    
+                    <div class="form-group" style="margin-bottom: 20px;">
+                        <label style="font-weight: 700; font-size: 0.85rem; color: #475569; display: block; margin-bottom: 8px;">Treatment / Procedure Done Today <span style="color: #ef4444;">*</span></label>
+                        <textarea id="quick-tx-done" class="premium-textarea" placeholder="Describe the treatment done today (e.g. Scaling completed, started RCT on tooth 46, cavity prep completed...)" rows="4" style="width: 100%; border-radius: 10px; padding: 12px; border: 1px solid #cbd5e1; font-family: inherit; font-size: 0.9rem;"></textarea>
+                    </div>
+                    
+                    <div style="border-top: 1px dashed #e2e8f0; margin: 20px 0; padding-top: 20px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px;">
+                            <label style="font-weight: 700; font-size: 0.9rem; color: #1e293b; display: flex; align-items: center; gap: 8px;">
+                                <i class="fas fa-calendar-plus" style="color: #10b981;"></i> Schedule Next Appointment?
+                            </label>
+                            <label class="switch" style="position: relative; display: inline-block; width: 44px; height: 24px; margin: 0;">
+                                <input type="checkbox" id="quick-tx-schedule-toggle" onchange="window.router.toggleQuickTxAppointment(this.checked)" style="opacity: 0; width: 0; height: 0;">
+                                <span class="switch-slider"></span>
+                            </label>
+                        </div>
+                        
+                        <div id="quick-tx-appointment-inputs" style="display: none; grid-template-columns: 1fr 1fr; gap: 15px;">
+                            <div class="form-group">
+                                <label style="font-weight: 700; font-size: 0.8rem; color: #475569; display: block; margin-bottom: 6px;">Next Date</label>
+                                <input type="date" id="quick-tx-next-date" class="premium-input" style="width: 100%;">
+                            </div>
+                            <div class="form-group">
+                                <label style="font-weight: 700; font-size: 0.8rem; color: #475569; display: block; margin-bottom: 6px;">Next Time</label>
+                                <input type="time" id="quick-tx-next-time" class="premium-input" style="width: 100%;">
+                            </div>
+                            <div class="form-group" style="grid-column: span 2;">
+                                <label style="font-weight: 700; font-size: 0.8rem; color: #475569; display: block; margin-bottom: 6px;">Appointment Notes</label>
+                                <input type="text" id="quick-tx-next-notes" placeholder="e.g. RCT Sitting 2 / Crown prep / Ortho check" class="premium-input" style="width: 100%;">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-top: 25px;">
+                        <button class="btn btn-primary-premium" id="quick-tx-save-btn" onclick="window.router.saveQuickVisitLog()" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 700;">
+                            <i class="fas fa-save"></i> Save Visit Record
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        try {
+            const res = await api.invoke('db-query', 'getAllPatients');
+            this.allQuickTxPatients = res.success ? res.data : [];
+        } catch (e) {
+            console.error(e);
+            this.showToast('Failed to fetch patients list', 'error');
+        }
+    }
+
+    handleQuickTxSearch(query) {
+        const resultsEl = document.getElementById('quick-tx-results');
+        if (!query.trim()) {
+            resultsEl.style.display = 'none';
+            return;
+        }
+
+        const cleanQ = query.toLowerCase().trim();
+        const filtered = this.allQuickTxPatients.filter(p => 
+            (p.full_name && p.full_name.toLowerCase().includes(cleanQ)) ||
+            (p.contact_primary && p.contact_primary.includes(cleanQ)) ||
+            (`DR-${p.id}`.toLowerCase().includes(cleanQ)) ||
+            (String(p.id).includes(cleanQ))
+        );
+
+        if (filtered.length === 0) {
+            resultsEl.innerHTML = `<div style="padding: 15px; text-align: center; color: #64748b; font-size: 0.9rem;">No matching patients found.</div>`;
+        } else {
+            resultsEl.innerHTML = filtered.map(p => `
+                <div class="tx-search-item" onclick="window.router.selectQuickTxPatient(${p.id})">
+                    <span style="font-weight: 700; color: var(--primary);">DR-${p.id}</span> - ${p.full_name} 
+                    <span style="color: #64748b; font-size: 0.8rem; margin-left: 8px;">(${p.contact_primary || 'No phone'})</span>
+                </div>
+            `).join('');
+        }
+        resultsEl.style.display = 'block';
+    }
+
+    selectQuickTxPatient(patientId) {
+        const patient = this.allQuickTxPatients.find(p => p.id === patientId);
+        if (!patient) return;
+
+        this.selectedQuickTxPatient = patient;
+        
+        // Hide dropdown
+        document.getElementById('quick-tx-results').style.display = 'none';
+        document.getElementById('quick-tx-search').value = `DR-${patient.id} - ${patient.full_name}`;
+
+        // Populate patient info card
+        const infoEl = document.getElementById('quick-tx-patient-info');
+        infoEl.style.alignItems = 'stretch';
+        infoEl.style.textAlign = 'left';
+        infoEl.innerHTML = `
+            <div style="display: flex; gap: 15px; align-items: center; margin-bottom: 15px; border-bottom: 1px solid #e2e8f0; padding-bottom: 15px;">
+                <div style="width: 45px; height: 45px; background: rgba(13, 148, 136, 0.1); color: var(--primary); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; font-weight: 700;">
+                    <i class="fas fa-user"></i>
+                </div>
+                <div>
+                    <h5 style="margin: 0; font-size: 1.1rem; font-weight: 800; color: #1e293b;">${patient.full_name}</h5>
+                    <span style="color: var(--primary); font-size: 0.85rem; font-weight: 700;">Patient ID: DR-${patient.id}</span>
+                </div>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 15px; font-size: 0.9rem; color: #475569;">
+                <div><strong>Age:</strong> ${patient.age || 'N/A'} yrs</div>
+                <div><strong>Gender:</strong> ${patient.gender || 'N/A'}</div>
+                <div style="grid-column: span 2;">
+                    <strong>Phone:</strong> <i class="fas fa-phone-alt" style="color: #94a3b8; font-size: 0.8rem; margin: 0 4px;"></i> ${patient.contact_primary || 'No phone'}
+                </div>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button class="btn btn-secondary-outline" onclick="window.router.viewPatientCaseSheet(${patient.id})" style="flex: 1; padding: 8px; font-size: 0.8rem; font-weight: 700;">
+                    <i class="fas fa-folder-open"></i> Open Case Sheet
+                </button>
+            </div>
+        `;
+
+        // Enable form container
+        const form = document.getElementById('quick-tx-form-container');
+        form.style.opacity = '1';
+        form.style.pointerEvents = 'auto';
+    }
+
+    async viewPatientCaseSheet(patientId) {
+        this.currentPatientId = patientId;
+        await this.navigate('patients');
+        this.showPatientHistoryDetail(patientId);
+    }
+
+    toggleQuickTxAppointment(checked) {
+        const inputsEl = document.getElementById('quick-tx-appointment-inputs');
+        inputsEl.style.display = checked ? 'grid' : 'none';
+        if (checked) {
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            document.getElementById('quick-tx-next-date').value = tomorrow.toLocaleDateString('en-CA');
+            document.getElementById('quick-tx-next-time').value = '10:00';
+        }
+    }
+
+    async saveQuickVisitLog() {
+        if (!this.selectedQuickTxPatient) {
+            this.showToast('Please search and select a patient first!', 'error');
+            return;
+        }
+
+        const procedure = document.getElementById('quick-tx-done').value.trim();
+        if (!procedure) {
+            this.showToast('Please describe the treatment done today!', 'warning');
+            document.getElementById('quick-tx-done').focus();
+            return;
+        }
+
+        const btn = document.getElementById('quick-tx-save-btn');
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> Saving...`;
+
+        try {
+            await api.invoke('db-query', 'saveTreatmentDone', {
+                patient_id: this.selectedQuickTxPatient.id,
+                procedure_logs: procedure
+            });
+
+            const scheduleChecked = document.getElementById('quick-tx-schedule-toggle').checked;
+            if (scheduleChecked) {
+                const nextDate = document.getElementById('quick-tx-next-date').value;
+                const nextTime = document.getElementById('quick-tx-next-time').value;
+                const nextNotes = document.getElementById('quick-tx-next-notes').value.trim();
+
+                if (!nextDate || !nextTime) {
+                    this.showToast('Treatment saved, but please select date and time for next appointment!', 'warning');
+                } else {
+                    await api.invoke('db-query', 'saveAppointment', {
+                        patient_id: this.selectedQuickTxPatient.id,
+                        appointment_date: `${nextDate}T${nextTime}:00`,
+                        notes: nextNotes
+                    });
+                }
+            }
+
+            this.showToast('Visit record saved successfully!', 'success');
+            await this.renderTreatmentLog();
+        } catch (e) {
+            console.error(e);
+            this.showToast('Failed to save visit record: ' + e.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = `<i class="fas fa-save"></i> Save Visit Record`;
         }
     }
 
