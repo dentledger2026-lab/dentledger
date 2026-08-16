@@ -4173,6 +4173,13 @@ class Router {
                                 <div id="sync-status" style="margin-top: 15px; font-size: 0.8rem; color: #94a3b8; font-weight: 600;">
                                     Last synced: ${s.last_sync || 'Never'}
                                 </div>
+                                ${s.google_excel_webview_link ? `
+                                <div style="margin-top: 10px; font-size: 0.85rem; font-weight: 700;">
+                                    <a href="${s.google_excel_webview_link}" target="_blank" style="color: #0d9488; text-decoration: underline; display: inline-flex; align-items: center; gap: 6px;">
+                                        <i class="fas fa-file-excel"></i> Open Excel Report on Google Drive
+                                    </a>
+                                </div>
+                                ` : ''}
                             </div>
                         </div>
 
