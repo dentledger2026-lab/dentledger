@@ -187,7 +187,7 @@ class Router {
                                         </div>
                                         
                                         <div id="dob-calendar-main-view">
-                                            <div style="display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; margin-bottom: 8px;">
+                                            <div class="dob-calendar-weekdays-row" style="display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; margin-bottom: 8px;">
                                                 ${['S','M','T','W','T','F','S'].map(d => `<span style="font-size: 0.6rem; font-weight: 800; color: #94a3b8;">${d}</span>`).join('')}
                                             </div>
                                             <div id="dob-calendar-days-grid" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px;"></div>
@@ -905,7 +905,7 @@ class Router {
                 </div>
 
                 <!-- 3. Header: Clinical Case Sheet (Third) -->
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding: 0 5px;">
+                <div class="clinical-header-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding: 0 5px;">
                     <div>
                         <h2 style="font-size: 1.6rem; font-weight: 800; color: #1e293b; margin: 0; letter-spacing: -0.5px;">Clinical Case Sheet</h2>
                     </div>
@@ -3612,7 +3612,7 @@ class Router {
                     </div>
                     
                     <div id="master-calendar-main-view" style="display: block;">
-                        <div style="display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; font-weight: 800; font-size: 0.75rem; color: #94a3b8; margin-bottom: 15px;">
+                        <div class="calendar-weekdays-row" style="display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; font-weight: 800; font-size: 0.75rem; color: #94a3b8; margin-bottom: 15px;">
                             <span>SUN</span><span>MON</span><span>TUE</span><span>WED</span><span>THU</span><span>FRI</span><span>SAT</span>
                         </div>
                         <div id="master-calendar-grid" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px;">
